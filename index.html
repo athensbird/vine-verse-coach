@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vine — Verse Memory Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{
+    --ink:#1E2E24;
+    --ink-2:#28402F;
+    --parchment:#F4F0E2;
+    --parchment-2:#EAE3CC;
+    --gold:#B7943F;
+    --gold-dim:#8C7333;
+    --rust:#9C5A3C;
+    --plural:#3E6E86;
+    --leaf:#4F7A5A;
+    --leaf-dim:#3C5F45;
+    --danger:#A6432F;
+    --ok:#4F7A5A;
+    --shadow: 0 1px 2px rgba(30,46,36,0.06), 0 4px 14px rgba(30,46,36,0.08);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: var(--parchment);
+    color: var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{ max-width:900px; margin:0 auto; padding:0 0 60px; }
+  .hero{
+    background: linear-gradient(160deg, var(--ink) 0%, var(--ink-2) 100%);
+    color: var(--parchment);
+    padding: 30px 24px 22px;
+    border-radius: 0 0 22px 22px;
+    position:relative;
+    overflow:hidden;
+  }
+  .hero::after{
+    content:"";
+    position:absolute; right:-40px; top:-40px; width:180px; height:180px;
+    border-radius:50%;
+    background: radial-gradient(circle, rgba(183,148,63,0.18), transparent 70%);
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px; letter-spacing:0.14em; text-transform:uppercase;
+    color: var(--gold); opacity:0.9; margin:0 0 6px;
+  }
+  h1{
+    font-family:'Fraunces', serif; font-weight:600; font-size:30px; margin:0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .sub{ font-size:13.5px; color:#D9D3BC; margin:0; }
+  .stats-row{ display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+  .stat-pill{
+    background: rgba(244,240,226,0.08);
+    border: 1px solid rgba(244,240,226,0.16);
+    border-radius: 10px;
+    padding: 8px 12px;
+    min-width:84px;
+  }
+  .stat-pill .n{ font-family:'Fraunces',serif; font-size:20px; font-weight:600; color:var(--parchment); line-height:1; }
+  .stat-pill .l{ font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:#B7AF92; margin-top:3px;}
+  .progressbar{ height:6px; border-radius:3px; background:rgba(244,240,226,0.14); margin-top:16px; overflow:hidden;}
+  .progressbar > div{ height:100%; background: var(--gold); border-radius:3px; transition:width .4s; }
+
+  .tabs{ display:flex; gap:4px; padding:16px 24px 0; }
+  .tab-btn{
+    font-family:'Inter'; font-weight:600; font-size:13.5px;
+    background:none; border:none; padding:10px 16px; cursor:pointer;
+    color: var(--leaf-dim); border-radius: 9px 9px 0 0;
+    border-bottom: 2px solid transparent;
+  }
+  .tab-btn.active{ color: var(--ink); border-bottom: 2px solid var(--gold); background: var(--parchment-2); }
+  .tabpanel{ display:none; padding: 18px 24px 0; }
+  .tabpanel.active{ display:block; }
+
+  .card{
+    background:#fff; border:1px solid #E4DEC7; border-radius:14px;
+    padding:16px 18px; margin-bottom:14px; box-shadow: var(--shadow);
+  }
+  .day-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px; }
+  .day-date{ font-family:'Fraunces',serif; font-weight:600; font-size:17px; }
+  .day-meta{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold-dim); }
+  .today-badge{
+    background:var(--leaf); color:#fff; font-size:10px; font-weight:700;
+    padding:2px 8px; border-radius:20px; margin-left:8px; letter-spacing:.03em;
+  }
+  .section-label{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; font-weight:700; color:var(--leaf-dim); margin: 10px 0 6px; }
+  .chip-row{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{
+    display:flex; align-items:center; gap:6px;
+    border:1px solid #E4DEC7; background:var(--parchment); border-radius:8px;
+    padding:6px 9px; font-size:12.5px; cursor:pointer; user-select:none;
+  }
+  .chip.new{ border-color:#D9C68C; }
+  .chip.review{ border-color:#CBD9C9; }
+  .chip input{ accent-color: var(--leaf); }
+  .chip.done{ opacity:0.5; text-decoration: line-through; }
+  .empty-note{ font-size:12.5px; color:#8A8368; font-style:italic; }
+
+  select, input[type=date], textarea, button.btn{
+    font-family:'Inter'; font-size:13.5px;
+  }
+  .btn{
+    background: var(--ink); color:#fff; border:none; border-radius:9px;
+    padding:9px 14px; cursor:pointer; font-weight:600;
+  }
+  .btn.secondary{ background:var(--parchment-2); color:var(--ink); border:1px solid #D9D0AF; }
+  .btn.gold{ background:var(--gold); color:#2B2200; }
+  .btn:disabled{ opacity:0.45; cursor:not-allowed; }
+  .btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+
+  .practice-picker{ display:flex; gap:10px; align-items:center; margin-bottom:16px; }
+  .practice-picker select{ padding:8px 10px; border-radius:8px; border:1px solid #D9D0AF; background:#fff; }
+
+  .mode-switch{ display:flex; gap:8px; margin-bottom:16px; }
+  .mode-btn{ font-family:'Inter'; font-weight:600; font-size:12.5px; background:#fff; border:1px solid #D9D0AF; color:#5c5738; padding:8px 14px; border-radius:20px; cursor:pointer; }
+  .mode-btn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+
+  .quiz-type-switch{ display:flex; gap:8px; margin-bottom:14px; }
+  .qtype-btn{ font-family:'Inter'; font-weight:600; font-size:12.5px; background:var(--parchment); border:1px solid #D9D0AF; color:#5c5738; padding:8px 14px; border-radius:9px; cursor:pointer; }
+  .qtype-btn.active{ background:#EFEADB; border-color:var(--gold); color:#6B540E; }
+
+  .blank-text{ font-family:'Fraunces',serif; font-size:16.5px; line-height:2.2; color:#2A2A22; margin: 10px 0; }
+  .blank-input{ font-family:'JetBrains Mono',monospace; font-size:13.5px; width:auto; min-width:64px; max-width:160px; border:none; border-bottom:2px solid var(--gold); background:transparent; padding:2px 3px; text-align:center; }
+  .blank-input.correct{ border-bottom-color: var(--leaf); background:#E4EFE1; }
+  .blank-input.wrong{ border-bottom-color: var(--danger); background:#F3DFD6; }
+
+  .ref-guess-textbox{ font-family:'Fraunces',serif; font-size:15px; }
+  .refscore{ font-family:'Fraunces',serif; font-size:20px; font-weight:700; }
+
+  .verse-card .ref{ font-family:'Fraunces',serif; font-weight:600; font-size:18px; }
+  .verse-card .tagrow{ margin:4px 0 10px; }
+  .tag{ font-size:10px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; padding:2px 7px; border-radius:20px; }
+  .tag.new{ background:#F3E4B8; color:#6B540E; }
+  .tag.review{ background:#DCEADC; color:#2F5D3C; }
+  .verse-text{ font-family:'Fraunces',serif; font-size:16.5px; line-height:1.6; color:#2A2A22; margin: 6px 0 4px; }
+  .verse-text.blurred{ filter: blur(6px); user-select:none; transition:filter .2s; }
+  .hl-divine{ background: rgba(183,148,63,0.22); border-bottom:1px solid var(--gold-dim); border-radius:3px; padding:0 2px; }
+  .hl-aux{ color: var(--rust); font-weight:700; }
+  .hl-plural{ color: var(--plural); font-weight:700; text-decoration: underline; text-decoration-style: dotted; text-underline-offset:2px; }
+  .hl-legend{ display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:#8A8368; margin:2px 0 12px; }
+  .hl-legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .hl-legend i{ width:10px; height:10px; border-radius:3px; display:inline-block; }
+  .scaffold{ font-family:'JetBrains Mono',monospace; font-size:14px; color:#6B6650; letter-spacing:.02em; line-height:1.7; }
+  .chain{ display:flex; align-items:center; gap:4px; margin-top:10px; }
+  .chain .node{ width:22px; height:22px; border-radius:50%; background:#E9E2C8; border:1px solid #D9D0AF; font-size:9px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono'; color:#8A8368; }
+  .chain .node.filled{ background: var(--leaf); color:#fff; border-color: var(--leaf-dim); }
+  .chain .bar{ flex:1; height:2px; background:#D9D0AF; }
+
+  textarea{ width:100%; min-height:90px; border-radius:10px; border:1px solid #D9D0AF; padding:10px; resize:vertical; font-family:'Fraunces',serif; font-size:15px; }
+  .feedback-box{ margin-top:10px; padding:10px 12px; border-radius:10px; background:var(--parchment); border:1px solid #E4DEC7; font-size:13.5px; line-height:1.55; white-space:pre-wrap; }
+  .pass-badge{ display:none; align-items:center; gap:6px; margin-top:10px; padding:7px 12px; border-radius:9px; background:#E4EFE1; border:1px solid #BFDAB9; color:#2F5D3C; font-size:12.5px; font-weight:700; }
+  .pass-badge.show{ display:inline-flex; }
+  .pass-badge .dot{ width:8px; height:8px; border-radius:50%; background:#4F7A5A; }
+  .diff-match{ color:#2F5D3C; }
+  .diff-miss{ color:#A6432F; text-decoration:underline; text-decoration-style:dotted; }
+
+  .stat-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:16px; }
+  .stat-card{ background:#fff; border:1px solid #E4DEC7; border-radius:12px; padding:14px; box-shadow: var(--shadow); }
+  .stat-card .n{ font-family:'Fraunces',serif; font-size:24px; font-weight:700; }
+  .stat-card .l{ font-size:11px; color:#8A8368; text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+
+  .pace-banner{ border-radius:12px; padding:14px 16px; margin-bottom:16px; font-size:13.5px; }
+  .pace-banner.ahead{ background:#E4EFE1; border:1px solid #BFDAB9; color:#2F5D3C; }
+  .pace-banner.ontrack{ background:#EFEADB; border:1px solid #D9C68C; color:#6B540E; }
+  .pace-banner.behind{ background:#F3DFD6; border:1px solid #E0A98D; color:#8C3A1E; }
+  .pace-banner b{ display:block; font-family:'Fraunces',serif; font-size:15px; margin-bottom:2px; }
+
+  .reward-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; }
+  .reward-card{ background:#fff; border:1px solid #E4DEC7; border-radius:12px; padding:14px; }
+  .reward-card .title{ font-family:'Fraunces',serif; font-weight:600; font-size:15px; }
+  .reward-card .desc{ font-size:12px; color:#8A8368; margin:3px 0 10px; }
+  .reward-card.locked{ opacity:0.55; }
+  .reward-card.claimed{ background: #F3EFDD; }
+
+  .chart{ display:flex; align-items:flex-end; gap:3px; height:120px; margin:10px 0 6px; }
+  .bar-col{ flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:2px; }
+  .bar-col .bars{ position:relative; width:100%; height:100px; display:flex; align-items:flex-end; justify-content:center; }
+  .bar-col .planned{ position:absolute; bottom:0; width:60%; background:#D9D0AF; border-radius:3px 3px 0 0; }
+  .bar-col .actual{ position:absolute; bottom:0; width:32%; background: var(--leaf); border-radius:3px 3px 0 0; margin-left:-1px;}
+  .bar-col .lbl{ font-size:8px; color:#8A8368; margin-top:3px; font-family:'JetBrains Mono'; }
+  .legend{ display:flex; gap:14px; font-size:11px; color:#8A8368; margin-bottom:4px;}
+  .legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .legend i{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+
+  .toast{ position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:10px; font-size:13px; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; z-index:50; }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
+
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hero">
+    <p class="eyebrow">Isaiah 1:18 → Revelation 3:20</p>
+    <h1>Vine</h1>
+    <p class="sub">A memory coach for the 152 verses ahead of you, on a 1‑2‑4‑7 review cadence, due Aug 22.</p>
+    <div class="stats-row" id="heroStats"></div>
+    <div class="progressbar"><div id="heroProgressFill" style="width:0%"></div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="plan">Plan</button>
+    <button class="tab-btn" data-tab="practice">Practice</button>
+    <button class="tab-btn" data-tab="progress">Progress</button>
+  </div>
+
+  <div class="tabpanel active" id="tab-plan"></div>
+  <div class="tabpanel" id="tab-practice"></div>
+  <div class="tabpanel" id="tab-progress"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script id="app-data" type="application/json">{"verses": [{"ref": "Isaiah 1:18", "text": "“Come now, let us reason together, says the LORD: though your sins are like scarlet, they shall be as white as snow; though they are red like crimson, they shall become like wool."}, {"ref": "Isaiah 40:6-8", "text": "A voice says, “Cry!” And I said, “What shall I cry?” All flesh is grass, and all its beauty is like the flower of the field. The grass withers, the flower fades when the breath of the LORD blows on it; surely the people are grass. The grass withers, the flower fades, but the word of our God will stand forever."}, {"ref": "Isaiah 40:28-31", "text": "Have you not known? Have you not heard? The LORD is the everlasting God, the Creator of the ends of the earth. He does not faint or grow weary; his understanding is unsearchable. He gives power to the faint, and to him who has no might he increases strength. Even youths shall faint and be weary, and young men shall fall exhausted; but they who wait for the LORD shall renew their strength; they shall mount up with wings like eagles; they shall run and not be weary; they shall walk and not faint."}, {"ref": "Isaiah 54:2-3", "text": "“Enlarge the place of your tent, and let the curtains of your habitations be stretched out; do not hold back; lengthen your cords and strengthen your stakes. For you will spread abroad to the right and to the left, and your offspring will possess the nations and will people the desolate cities."}, {"ref": "Isaiah 55:1-3a", "text": "“Come, everyone who thirsts, come to the waters; and he who has no money, come, buy and eat! Come, buy wine and milk without money and without price. Why do you spend your money for that which is not bread, and your labor for that which does not satisfy? Listen diligently to me, and eat what is good, and delight yourselves in rich food. Incline your ear, and come to me; hear, that your soul may live;"}, {"ref": "Isaiah 55:8-9", "text": "For my thoughts are not your thoughts, neither are your ways my ways, declares the LORD. For as the heavens are higher than the earth, so are my ways higher than your ways and my thoughts than your thoughts."}, {"ref": "Isaiah 57:15", "text": "For thus says the One who is high and lifted up, who inhabits eternity, whose name is Holy: “I dwell in the high and holy place, and also with him who is of a contrite and lowly spirit, to revive the spirit of the lowly, and to revive the heart of the contrite."}, {"ref": "Isaiah 66:1-2", "text": "Thus says the LORD: “Heaven is my throne, and the earth is my footstool; what is the house that you would build for me, and what is the place of my rest? All these things my hand has made, and so all these things came to be, declares the LORD. But this is the one to whom I will look: he who is humble and contrite in spirit and trembles at my word."}, {"ref": "Jeremiah 9:23-24", "text": "Thus says the LORD: “Let not the wise man boast in his wisdom, let not the mighty man boast in his might, let not the rich man boast in his riches, but let him who boasts boast in this, that he understands and knows me, that I am the LORD who practices steadfast love, justice, and righteousness in the earth. For in these things I delight, declares the LORD.”"}, {"ref": "Jeremiah 29:11-13", "text": "For I know the plans I have for you, declares the LORD, plans for welfare and not for evil, to give you a future and a hope. Then you will call upon me and come and pray to me, and I will hear you. You will seek me and find me, when you seek me with all your heart."}, {"ref": "Jeremiah 33:3", "text": "Call to me and I will answer you, and will tell you great and hidden things that you have not known."}, {"ref": "Lamentations 3:21-23", "text": "But this I call to mind, and therefore I have hope: The steadfast love of the LORD never ceases; his mercies never come to an end; they are new every morning; great is your faithfulness."}, {"ref": "Joel 2:13", "text": "Rend your hearts and not your garments.” Return to the LORD your God, for he is gracious and merciful, slow to anger, and abounding in steadfast love; and he relents over disaster."}, {"ref": "Micah 6:8", "text": "He has told you, O man, what is good; and what does the LORD require of you but to do justice, and to love kindness, and to walk humbly with your God?"}, {"ref": "Habakkuk 3:17-18", "text": "Though the fig tree should not blossom, nor fruit be on the vines, the produce of the olive fail and the fields yield no food, the flock be cut off from the fold and there be no herd in the stalls, yet I will rejoice in the LORD; I will take joy in the God of my salvation."}, {"ref": "Zechariah 4:6b", "text": "Not by might, nor by power, but by my Spirit, says the LORD of hosts."}, {"ref": "Zephaniah 3:17", "text": "The LORD your God is in your midst, a mighty one who will save; he will rejoice over you with gladness; he will quiet you by his love; he will exult over you with loud singing."}, {"ref": "Malachi 3:10", "text": "Bring the full tithe into the storehouse, that there may be food in my house. And thereby put me to the test, says the LORD of hosts, if I will not open the windows of heaven for you and pour down for you a blessing until there is no more need."}, {"ref": "Matthew 6:19-21", "text": "“Do not lay up for yourselves treasures on earth, where moth and rust destroy and where thieves break in and steal, but lay up for yourselves treasures in heaven, where neither moth nor rust destroys and where thieves do not break in and steal. For where your treasure is, there your heart will be also."}, {"ref": "Matthew 6:24", "text": "No one can serve two masters, for either he will hate the one and love the other, or he will be devoted to the one and despise the other. You cannot serve God and money."}, {"ref": "Matthew 6:33-34", "text": "But seek first the kingdom of God and his righteousness, and all these things will be added to you. Therefore do not be anxious about tomorrow, for tomorrow will be anxious for itself. Sufficient for the day is its own trouble."}, {"ref": "Matthew 7:7-8", "text": "Ask, and it will be given to you; seek, and you will find; knock, and it will be opened to you. For everyone who asks receives, and the one who seeks finds, and to the one who knocks it will be opened."}, {"ref": "Matthew 7:13-14", "text": "Enter by the narrow gate. For the gate is wide and the way is easy that leads to destruction, and those who enter by it are many. For the gate is narrow and the way is hard that leads to life, and those who find it are few."}, {"ref": "Matthew 11:28-29", "text": "Come to me, all who labor and are heavy laden, and I will give you rest. Take my yoke upon you, and learn from me, for I am gentle and lowly in heart, and you will find rest for your souls."}, {"ref": "Matthew 22:37-39", "text": "And he said to him, “You shall love the Lord your God with all your heart and with all your soul and with all your mind. This is the great and first commandment. And a second is like it: You shall love your neighbor as yourself."}, {"ref": "Matthew 28:18-20", "text": "And Jesus came and said to them, “All authority in heaven and on earth has been given to me. Go therefore and make disciples of all nations, baptizing them in the name of the Father and of the Son and of the Holy Spirit, teaching them to observe all that I have commanded you. And behold, I am with you always, to the end of the age.”"}, {"ref": "Mark 10:43-45", "text": "But it shall not be so among you. But whoever would be great among you must be your servant, and whoever would be first among you must be slave of all. For even the Son of Man came not to be served but to serve, and to give his life as a ransom for many.”"}, {"ref": "Luke 9:23-25", "text": "And he said to all, “If anyone would come after me, let him deny himself and take up his cross daily and follow me.” For whoever would save his life will lose it, but whoever loses his life for my sake will save it. For what does it profit a man if he gains the whole world and loses or forfeits himself?”"}, {"ref": "Luke 10:20", "text": "Nevertheless, do not rejoice in this, that the spirits are subject to you, but rejoice that your names are written in heaven.”"}, {"ref": "Luke 11:13", "text": "If you then, who are evil, know how to give good gifts to your children, how much more will the heavenly Father give the Holy Spirit to those who ask him!”"}, {"ref": "Luke 12:32", "text": "Fear not, little flock, for it is your Father's good pleasure to give you the kingdom."}, {"ref": "Luke 12:48b", "text": "Everyone to whom much was given, of him much will be required, and from him to whom they entrusted much, they will demand the more."}, {"ref": "Luke 14:26", "text": "If anyone comes to me and does not hate his own father and mother and wife and children and brothers and sisters, yes, and even his own life, he cannot be my disciple."}, {"ref": "Luke 17:10", "text": "So you also, when you have done all that you were commanded, say, ‘We are unworthy servants; we have only done what was our duty.’”"}, {"ref": "John 1:12", "text": "But to all who did receive him, who believed in his name, he gave the right to become children of God"}, {"ref": "John 1:14", "text": "And the Word became flesh and dwelt among us, and we have seen his glory, glory as of the only Son from the Father, full of grace and truth."}, {"ref": "John 3:16", "text": "For God so loved the world, that he gave his only Son, that whoever believes in him should not perish but have eternal life."}, {"ref": "John 5:44", "text": "How can you believe, when you receive glory from one another and do not seek the glory that comes from the only God?"}, {"ref": "John 6:68-69", "text": "Simon Peter answered him, “Lord, to whom shall we go? You have the words of eternal life, and we have believed, and have come to know, that you are the Holy One of God.”"}, {"ref": "John 8:31-32", "text": "So Jesus said to the Jews who had believed him, “If you abide in my word, you are truly my disciples, and you will know the truth, and the truth will set you free.”"}, {"ref": "John 10:10-11", "text": "The thief comes only to steal and kill and destroy. I came that they may have life and have it abundantly. I am the good shepherd. The good shepherd lays down his life for the sheep."}, {"ref": "John 10:27-30", "text": "My sheep hear my voice, and I know them, and they follow me. I give them eternal life, and they will never perish, and no one will snatch them out of my hand. My Father, who has given them to me, is greater than all, and no one is able to snatch them out of the Father's hand. I and the Father are one."}, {"ref": "John 12:24-25", "text": "Truly, truly, I say to you, unless a grain of wheat falls into the earth and dies, it remains alone; but if it dies, it bears much fruit. Whoever loves his life loses it, and whoever hates his life in this world will keep it for eternal life."}, {"ref": "John 13:34-35", "text": "A new commandment I give to you, that you love one another: just as I have loved you, you also are to love one another. By this all people will know that you are my disciples, if you have love for one another.”"}, {"ref": "John 14:1-3", "text": "Let not your hearts be troubled. Believe in God; believe also in me. In my Father's house are many rooms. If it were not so, would I have told you that I go to prepare a place for you? And if I go and prepare a place for you, I will come again and will take you to myself, that where I am you may be also."}, {"ref": "John 14:6", "text": "Jesus said to him, “I am the way, and the truth, and the life. No one comes to the Father except through me."}, {"ref": "John 14:27", "text": "Peace I leave with you; my peace I give to you. Not as the world gives do I give to you. Let not your hearts be troubled, neither let them be afraid."}, {"ref": "John 15:5", "text": "I am the vine; you are the branches. Whoever abides in me and I in him, he it is that bears much fruit, for apart from me you can do nothing."}, {"ref": "John 16:33", "text": "I have said these things to you, that in me you may have peace. In the world you will have tribulation. But take heart; I have overcome the world."}, {"ref": "Acts 1:8", "text": "But you will receive power when the Holy Spirit has come upon you, and you will be my witnesses in Jerusalem and in all Judea and Samaria, and to the end of the earth."}, {"ref": "Acts 3:19", "text": "Repent therefore, and turn back, that your sins may be blotted out."}, {"ref": "Acts 4:12", "text": "And there is salvation in no one else, for there is no other name under heaven given among men by which we must be saved."}, {"ref": "Acts 20:24", "text": "But I do not account my life of any value nor as precious to myself, if only I may finish my course and the ministry that I received from the Lord Jesus, to testify to the gospel of the grace of God."}, {"ref": "Romans 1:16", "text": "For I am not ashamed of the gospel, for it is the power of God for salvation to everyone who believes, to the Jew first and also to the Greek."}, {"ref": "Romans 2:4", "text": "Or do you presume on the riches of his kindness and forbearance and patience, not knowing that God's kindness is meant to lead you to repentance?"}, {"ref": "Romans 3:23", "text": "For all have sinned and fall short of the glory of God."}, {"ref": "Romans 5:6-10", "text": "For while we were still weak, at the right time Christ died for the ungodly. For one will scarcely die for a righteous person—though perhaps for a good person one would dare even to die — but God shows his love for us in that while we were still sinners, Christ died for us. Since, therefore, we have now been justified by his blood, much more shall we be saved by him from the wrath of God. For if while we were enemies we were reconciled to God by the death of his Son, much more, now that we are reconciled, shall we be saved by his life."}, {"ref": "Romans 6:12-13", "text": "Let not sin therefore reign in your mortal body, to make you obey its passions. Do not present your members to sin as instruments for unrighteousness, but present yourselves to God as those who have been brought from death to life, and your members to God as instruments for righteousness."}, {"ref": "Romans 6:23", "text": "For the wages of sin is death, but the free gift of God is eternal life in Christ Jesus our Lord."}, {"ref": "Romans 8:1-2", "text": "There is therefore now no condemnation for those who are in Christ Jesus. For the law of the Spirit of life has set you free in Christ Jesus from the law of sin and death."}, {"ref": "Romans 8:15-16", "text": "For you did not receive the spirit of slavery to fall back into fear, but you have received the Spirit of adoption as sons, by whom we cry, “Abba! Father!” The Spirit himself bears witness with our spirit that we are children of God."}, {"ref": "Romans 8:28", "text": "And we know that for those who love God all things work together for good, for those who are called according to his purpose."}, {"ref": "Romans 8:37-39", "text": "No, in all these things we are more than conquerors through him who loved us. For I am sure that neither death nor life, nor angels nor rulers, nor things present nor things to come, nor powers, nor height nor depth, nor anything else in all creation, will be able to separate us from the love of God in Christ Jesus our Lord."}, {"ref": "Romans 10:9-10", "text": "Because, if you confess with your mouth that Jesus is Lord and believe in your heart that God raised him from the dead, you will be saved. For with the heart one believes and is justified, and with the mouth one confesses and is saved."}, {"ref": "Romans 12:1-2", "text": "I appeal to you therefore, brothers, by the mercies of God, to present your bodies as a living sacrifice, holy and acceptable to God, which is your spiritual worship. Do not be conformed to this world, but be transformed by the renewal of your mind, that by testing you may discern what is the will of God, what is good and acceptable and perfect."}, {"ref": "Romans 13:8", "text": "Owe no one anything, except to love each other, for the one who loves another has fulfilled the law."}, {"ref": "Romans 14:8", "text": "For if we live, we live to the Lord, and if we die, we die to the Lord. So then, whether we live or whether we die, we are the Lord's."}, {"ref": "1 Corinthians 1:18", "text": "For the word of the cross is folly to those who are perishing, but to us who are being saved it is the power of God."}, {"ref": "1 Corinthians 2:2", "text": "For I decided to know nothing among you except Jesus Christ and him crucified."}, {"ref": "1 Corinthians 2:14", "text": "The natural person does not accept the things of the Spirit of God, for they are folly to him, and he is not able to understand them because they are spiritually discerned."}, {"ref": "1 Corinthians 6:19-20", "text": "Or do you not know that your body is a temple of the Holy Spirit within you, whom you have from God? You are not your own, for you were bought with a price. So glorify God in your body."}, {"ref": "1 Corinthians 9:22b", "text": "I have become all things to all people, that by all means I might save some."}, {"ref": "1 Corinthians 9:26-27", "text": "So I do not run aimlessly; I do not box as one beating the air. But I discipline my body and keep it under control, lest after preaching to others I myself should be disqualified."}, {"ref": "1 Corinthians 10:13", "text": "No temptation has overtaken you that is not common to man. God is faithful, and he will not let you be tempted beyond your ability, but with the temptation he will also provide the way of escape, that you may be able to endure it."}, {"ref": "1 Corinthians 12:18", "text": "But as it is, God arranged the members in the body, each one of them, as he chose."}, {"ref": "1 Corinthians 13:13", "text": "So now faith, hope, and love abide, these three; but the greatest of these is love."}, {"ref": "1 Corinthians 15:58", "text": "Therefore, my beloved brothers, be steadfast, immovable, always abounding in the work of the Lord, knowing that in the Lord your labor is not in vain."}, {"ref": "2 Corinthians 3:5", "text": "Not that we are sufficient in ourselves to claim anything as coming from us, but our sufficiency is from God."}, {"ref": "2 Corinthians 3:17", "text": "Now the Lord is the Spirit, and where the Spirit of the Lord is, there is freedom."}, {"ref": "2 Corinthians 4:4", "text": "In their case the god of this world has blinded the minds of the unbelievers, to keep them from seeing the light of the gospel of the glory of Christ, who is the image of God."}, {"ref": "2 Corinthians 4:7", "text": "But we have this treasure in jars of clay, to show that the surpassing power belongs to God and not to us."}, {"ref": "2 Corinthians 4:16-18", "text": "So we do not lose heart. Though our outer self is wasting away, our inner self is being renewed day by day. For this light momentary affliction is preparing for us an eternal weight of glory beyond all comparison, as we look not to the things that are seen but to the things that are unseen. For the things that are seen are transient, but the things that are unseen are eternal."}, {"ref": "2 Corinthians 5:7", "text": "For we walk by faith, not by sight."}, {"ref": "2 Corinthians 5:14", "text": "For the love of Christ controls us, because we have concluded this: that one has died for all, therefore all have died."}, {"ref": "2 Corinthians 5:17", "text": "Therefore, if anyone is in Christ, he is a new creation. The old has passed away; behold, the new has come."}, {"ref": "2 Corinthians 6:14", "text": "Do not be unequally yoked with unbelievers. For what partnership has righteousness with lawlessness? Or what fellowship has light with darkness?"}, {"ref": "2 Corinthians 7:10", "text": "For godly grief produces a repentance that leads to salvation without regret, whereas worldly grief produces death."}, {"ref": "2 Corinthians 9:7", "text": "Each one must give as he has decided in his heart, not reluctantly or under compulsion, for God loves a cheerful giver."}, {"ref": "2 Corinthians 11:14", "text": "And no wonder, for even Satan disguises himself as an angel of light."}, {"ref": "2 Corinthians 12:9-10", "text": "But he said to me, “My grace is sufficient for you, for my power is made perfect in weakness.” Therefore I will boast all the more gladly of my weaknesses, so that the power of Christ may rest upon me. For the sake of Christ, then, I am content with weaknesses, insults, hardships, persecutions, and calamities. For when I am weak, then I am strong."}, {"ref": "Galatians 1:10", "text": "For am I now seeking the approval of man, or of God? Or am I trying to please man? If I were still trying to please man, I would not be a servant of Christ."}, {"ref": "Galatians 2:20", "text": "I have been crucified with Christ. It is no longer I who live, but Christ who lives in me. And the life I now live in the flesh I live by faith in the Son of God, who loved me and gave himself for me."}, {"ref": "Galatians 5:16-17", "text": "But I say, walk by the Spirit, and you will not gratify the desires of the flesh. For the desires of the flesh are against the Spirit, and the desires of the Spirit are against the flesh, for these are opposed to each other, to keep you from doing the things you want to do."}, {"ref": "Galatians 5:22-23", "text": "But the fruit of the Spirit is love, joy, peace, patience, kindness, goodness, faithfulness, gentleness, self-control; against such things there is no law."}, {"ref": "Galatians 6:2", "text": "Bear one another's burdens, and so fulfill the law of Christ."}, {"ref": "Galatians 6:7-9", "text": "Do not be deceived: God is not mocked, for whatever one sows, that will he also reap. For the one who sows to his own flesh will from the flesh reap corruption, but the one who sows to the Spirit will from the Spirit reap eternal life. And let us not grow weary of doing good, for in due season we will reap, if we do not give up."}, {"ref": "Galatians 6:14", "text": "But far be it from me to boast except in the cross of our Lord Jesus Christ, by which the world has been crucified to me, and I to the world."}, {"ref": "Ephesians 1:3", "text": "Blessed be the God and Father of our Lord Jesus Christ, who has blessed us in Christ with every spiritual blessing in the heavenly places."}, {"ref": "Ephesians 2:8-10", "text": "For by grace you have been saved through faith. And this is not your own doing; it is the gift of God, not a result of works, so that no one may boast. For we are his workmanship, created in Christ Jesus for good works, which God prepared beforehand, that we should walk in them."}, {"ref": "Ephesians 2:14", "text": "For he himself is our peace, who has made us both one and has broken down in his flesh the dividing wall of hostility."}, {"ref": "Ephesians 3:16-21", "text": "That according to the riches of his glory he may grant you to be strengthened with power through his Spirit in your inner being, so that Christ may dwell in your hearts through faith—that you, being rooted and grounded in love, may have strength to comprehend with all the saints what is the breadth and length and height and depth, and to know the love of Christ that surpasses knowledge, that you may be filled with all the fullness of God. Now to him who is able to do far more abundantly than all that we ask or think, according to the power at work within us, to him be glory in the church and in Christ Jesus throughout all generations, forever and ever. Amen."}, {"ref": "Ephesians 4:11-12", "text": "And he gave the apostles, the prophets, the evangelists, the shepherds and teachers, to equip the saints for the work of ministry, for building up the body of Christ."}, {"ref": "Ephesians 4:22-24", "text": "To put off your old self, which belongs to your former manner of life and is corrupt through deceitful desires, and to be renewed in the spirit of your minds, and to put on the new self, created after the likeness of God in true righteousness and holiness."}, {"ref": "Ephesians 5:1-2", "text": "Therefore be imitators of God, as beloved children. And walk in love, as Christ loved us and gave himself up for us, a fragrant offering and sacrifice to God."}, {"ref": "Ephesians 5:11", "text": "Take no part in the unfruitful works of darkness, but instead expose them."}, {"ref": "Ephesians 5:15-16", "text": "Look carefully then how you walk, not as unwise but as wise, making the best use of the time, because the days are evil."}, {"ref": "Ephesians 6:10-12", "text": "Finally, be strong in the Lord and in the strength of his might. Put on the whole armor of God, that you may be able to stand against the schemes of the devil. For we do not wrestle against flesh and blood, but against the rulers, against the authorities, against the cosmic powers over this present darkness, against the spiritual forces of evil in the heavenly places."}, {"ref": "Philippians 1:6", "text": "And I am sure of this, that he who began a good work in you will bring it to completion at the day of Jesus Christ."}, {"ref": "Philippians 1:21", "text": "For to me to live is Christ, and to die is gain."}, {"ref": "Philippians 2:1-11", "text": "So if there is any encouragement in Christ, any comfort from love, any participation in the Spirit, any affection and sympathy, complete my joy by being of the same mind, having the same love, being in full accord and of one mind. Do nothing from selfish ambition or conceit, but in humility count others more significant than yourselves. Let each of you look not only to his own interests, but also to the interests of others. Have this mind among yourselves, which is yours in Christ Jesus,who, though he was in the form of God, did not count equality with God a thing to be grasped, but emptied himself, by taking the form of a servant, being born in the likeness of men. And being found in human form, he humbled himself by becoming obedient to the point of death, even death on a cross. Therefore God has highly exalted him and bestowed on him the name that is above every name, so that at the name of Jesus every knee should bow, in heaven and on earth and under the earth, and every tongue confess that Jesus Christ is Lord, to the glory of God the Father."}, {"ref": "Philippians 2:13", "text": "For it is God who works in you, both to will and to work for his good pleasure."}, {"ref": "Philippians 3:7-8", "text": "But whatever gain I had, I counted as loss for the sake of Christ. Indeed, I count everything as loss because of the surpassing worth of knowing Christ Jesus my Lord. For his sake I have suffered the loss of all things and count them as rubbish, in order that I may gain Christ"}, {"ref": "Philippians 3:13-14", "text": "Brothers, I do not consider that I have made it my own. But one thing I do: forgetting what lies behind and straining forward to what lies ahead, I press on toward the goal for the prize of the upward call of God in Christ Jesus."}, {"ref": "Philippians 4:6-7", "text": "Do not be anxious about anything, but in everything by prayer and supplication with thanksgiving let your requests be made known to God. And the peace of God, which surpasses all understanding, will guard your hearts and your minds in Christ Jesus."}, {"ref": "Philippians 4:8", "text": "Finally, brothers, whatever is true, whatever is honorable, whatever is just, whatever is pure, whatever is lovely, whatever is commendable, if there is any excellence, if there is anything worthy of praise, think about these things."}, {"ref": "Philippians 4:19", "text": "And my God will supply every need of yours according to his riches in glory in Christ Jesus."}, {"ref": "Colossians 3:1-2", "text": "If then you have been raised with Christ, seek the things that are above, where Christ is, seated at the right hand of God. Set your minds on things that are above, not on things that are on earth."}, {"ref": "1 Thessalonians 5:16-18", "text": "Rejoice always, pray without ceasing, give thanks in all circumstances; for this is the will of God in Christ Jesus for you."}, {"ref": "1 Timothy 6:6-8", "text": "But godliness with contentment is great gain, for we brought nothing into the world, and we cannot take anything out of the world. But if we have food and clothing, with these we will be content."}, {"ref": "2 Timothy 1:7", "text": "For God gave us a spirit not of fear but of power and love and self\u0002control."}, {"ref": "2 Timothy 1:12", "text": "Which is why I suffer as I do. But I am not ashamed, for I know whom I have believed, and I am convinced that he is able to guard until that Day what has been entrusted to me."}, {"ref": "2 Timothy 2:3-4", "text": "Share in suffering as a good soldier of Christ Jesus. No soldier gets entangled in civilian pursuits, since his aim is to please the one who enlisted him."}, {"ref": "2 Timothy 2:21", "text": "Therefore, if anyone cleanses himself from what is dishonorable, he will be a vessel for honorable use, set apart as holy, useful to the master of the house, ready for every good work."}, {"ref": "2 Timothy 3:16-17", "text": "All Scripture is breathed out by God and profitable for teaching, for reproof, for correction, and for training in righteousness, that the man of God may be complete, equipped for every good work."}, {"ref": "2 Timothy 4:6-8", "text": "For I am already being poured out as a drink offering, and the time of my departure has come. I have fought the good fight, I have finished the race, I have kept the faith. Henceforth there is laid up for me the crown of righteousness, which the Lord, the righteous judge, will award to me on that Day, and not only to me but also to all who have loved his appearing."}, {"ref": "Hebrews 4:12", "text": "For the word of God is living and active, sharper than any two\u0002edged sword, piercing to the division of soul and of spirit, of joints and of marrow, and discerning the thoughts and intentions of the heart."}, {"ref": "Hebrews 4:15-16", "text": "For we do not have a high priest who is unable to sympathize with our weaknesses, but one who in every respect has been tempted as we are, yet without sin. Let us then with confidence draw near to the throne of grace, that we may receive mercy and find grace to help in time of need."}, {"ref": "Hebrews 10:23-25", "text": "Let us hold fast the confession of our hope without wavering, for he who promised is faithful. And let us consider how to stir up one another to love and good works, not neglecting to meet together, as is the habit of some, but encouraging one another, and all the more as you see the Day drawing near."}, {"ref": "Hebrews 11:1", "text": "Now faith is the assurance of things hoped for, the conviction of things not seen."}, {"ref": "Hebrews 11:6", "text": "And without faith it is impossible to please him, for whoever would draw near to God must believe that he exists and that he rewards those who seek him."}, {"ref": "Hebrews 12:1-2", "text": "Therefore, since we are surrounded by so great a cloud of witnesses, let us also lay aside every weight, and sin which clings so closely, and let us run with endurance the race that is set before us,"}, {"ref": "Hebrews 12:4", "text": "In your struggle against sin you have not yet resisted to the point of shedding your blood."}, {"ref": "Hebrews 12:11", "text": "For the moment all discipline seems painful rather than pleasant, but later it yields the peaceful fruit of righteousness to those who have been trained by it."}, {"ref": "James 4:7", "text": "Submit yourselves therefore to God. Resist the devil, and he will flee from you."}, {"ref": "1 Peter 1:18-19", "text": "Knowing that you were ransomed from the futile ways inherited from your forefathers, not with perishable things such as silver or gold, but with the precious blood of Christ, like that of a lamb without blemish or spot."}, {"ref": "1 Peter 2:9", "text": "But you are a chosen race, a royal priesthood, a holy nation, a people for his own possession, that you may proclaim the excellencies of him who called you out of darkness into his marvelous light."}, {"ref": "1 Peter 2:11-12", "text": "Beloved, I urge you as sojourners and exiles to abstain from the passions of the flesh, which wage war against your soul. Keep your conduct among the Gentiles honorable, so that when they speak against you as evildoers, they may see your good deeds and glorify God on the day of visitation."}, {"ref": "1 Peter 2:21", "text": "For to this you have been called, because Christ also suffered for you, leaving you an example, so that you might follow in his steps."}, {"ref": "1 Peter 3:15-16", "text": "But in your hearts honor Christ the Lord as holy, always being prepared to make a defense to anyone who asks you for a reason for the hope that is in you; yet do it with gentleness and respect, having a good conscience, so that, when you are slandered, those who revile your good behavior in Christ may be put to shame."}, {"ref": "1 Peter 4:7-8", "text": "The end of all things is at hand; therefore be self-controlled and sober-minded for the sake of your prayers. Above all, keep loving one another earnestly, since love covers a multitude of sins."}, {"ref": "1 Peter 4:10", "text": "As each has received a gift, use it to serve one another, as good stewards of God's varied grace."}, {"ref": "1 Peter 5:6-7", "text": "Humble yourselves, therefore, under the mighty hand of God so that at the proper time he may exalt you, casting all your anxieties on him, because he cares for you."}, {"ref": "1 Peter 5:8-9", "text": "Be sober-minded; be watchful. Your adversary the devil prowls around like a roaring lion, seeking someone to devour. Resist him, firm in your faith, knowing that the same kinds of suffering are being experienced by your brotherhood throughout the world."}, {"ref": "2 Peter 3:8-9", "text": "But do not overlook this one fact, beloved, that with the Lord one day is as a thousand years, and a thousand years as one day. The Lord is not slow to fulfill his promise as some count slowness, but is patient toward you, not wishing that any should perish, but that all should reach repentance."}, {"ref": "1 John 1:9", "text": "If we confess our sins, he is faithful and just to forgive us our sins and to cleanse us from all unrighteousness."}, {"ref": "1 John 2:15-16", "text": "Do not love the world or the things in the world. If anyone loves the world, the love of the Father is not in him. For all that is in the world—the desires of the flesh and the desires of the eyes and pride of life— is not from the Father but is from the world."}, {"ref": "1 John 3:16", "text": "By this we know love, that he laid down his life for us, and we ought to lay down our lives for the brothers."}, {"ref": "1 John 4:4", "text": "Little children, you are from God and have overcome them, for he who is in you is greater than he who is in the world."}, {"ref": "1 John 4:17-19", "text": "By this is love perfected with us, so that we may have confidence for the day of judgment, because as he is so also are we in this world. There is no fear in love, but perfect love casts out fear. For fear has to do with punishment, and whoever fears has not been perfected in love. We love because he first loved us."}, {"ref": "1 John 5:3", "text": "For this is the love of God, that we keep his commandments. And his commandments are not burdensome."}, {"ref": "1 John 5:13-15", "text": "I write these things to you who believe in the name of the Son of God that you may know that you have eternal life. And this is the confidence that we have toward him, that if we ask anything according to his will he hears us. And if we know that he hears us in whatever we ask, we know that we have the requests that we have asked of him."}, {"ref": "Revelation 3:20", "text": "Behold, I stand at the door and knock. If anyone hears my voice and opens the door, I will come in to him and eat with him, and he with me."}], "schedule": [{"date": "2026-08-07", "weekday": "Fri", "budget": 170, "newRefs": ["Isaiah 1:18", "Isaiah 40:6-8", "Isaiah 40:28-31", "Isaiah 54:2-3", "Isaiah 55:1-3a", "Isaiah 55:8-9", "Isaiah 57:15", "Isaiah 66:1-2", "Jeremiah 9:23-24", "Jeremiah 29:11-13", "Jeremiah 33:3", "Lamentations 3:21-23", "Joel 2:13", "Micah 6:8"], "reviewRefs": []}, {"date": "2026-08-08", "weekday": "Sat", "budget": 90, "newRefs": ["Habakkuk 3:17-18", "Zechariah 4:6b", "Zephaniah 3:17", "Malachi 3:10", "Matthew 6:19-21", "Matthew 6:24", "Matthew 6:33-34"], "reviewRefs": ["Isaiah 1:18", "Isaiah 40:6-8", "Isaiah 40:28-31", "Isaiah 54:2-3", "Isaiah 55:1-3a", "Isaiah 55:8-9", "Isaiah 57:15", "Isaiah 66:1-2", "Jeremiah 9:23-24", "Jeremiah 29:11-13", "Jeremiah 33:3", "Lamentations 3:21-23", "Joel 2:13", "Micah 6:8"]}, {"date": "2026-08-09", "weekday": "Sun", "budget": 90, "newRefs": ["Matthew 7:7-8", "Matthew 7:13-14", "Matthew 11:28-29", "Matthew 22:37-39"], "reviewRefs": ["Isaiah 1:18", "Isaiah 40:6-8", "Isaiah 40:28-31", "Isaiah 54:2-3", "Isaiah 55:1-3a", "Isaiah 55:8-9", "Isaiah 57:15", "Isaiah 66:1-2", "Jeremiah 9:23-24", "Jeremiah 29:11-13", "Jeremiah 33:3", "Lamentations 3:21-23", "Joel 2:13", "Micah 6:8", "Habakkuk 3:17-18", "Zechariah 4:6b", "Zephaniah 3:17", "Malachi 3:10", "Matthew 6:19-21", "Matthew 6:24", "Matthew 6:33-34"]}, {"date": "2026-08-10", "weekday": "Mon", "budget": 170, "newRefs": ["Matthew 28:18-20", "Mark 10:43-45", "Luke 9:23-25", "Luke 10:20", "Luke 11:13", "Luke 12:32", "Luke 12:48b", "Luke 14:26", "Luke 17:10", "John 1:12", "John 1:14", "John 3:16", "John 5:44", "John 6:68-69"], "reviewRefs": ["Habakkuk 3:17-18", "Zechariah 4:6b", "Zephaniah 3:17", "Malachi 3:10", "Matthew 6:19-21", "Matthew 6:24", "Matthew 6:33-34", "Matthew 7:7-8", "Matthew 7:13-14", "Matthew 11:28-29", "Matthew 22:37-39"]}, {"date": "2026-08-11", "weekday": "Tue", "budget": 170, "newRefs": ["John 8:31-32", "John 10:10-11", "John 10:27-30", "John 12:24-25", "John 13:34-35", "John 14:1-3", "John 14:6", "John 14:27", "John 15:5", "John 16:33", "Acts 1:8", "Acts 3:19", "Acts 4:12", "Acts 20:24"], "reviewRefs": ["Isaiah 1:18", "Isaiah 40:6-8", "Isaiah 40:28-31", "Isaiah 54:2-3", "Isaiah 55:1-3a", "Isaiah 55:8-9", "Isaiah 57:15", "Isaiah 66:1-2", "Jeremiah 9:23-24", "Jeremiah 29:11-13", "Jeremiah 33:3", "Lamentations 3:21-23", "Joel 2:13", "Micah 6:8", "Matthew 7:7-8", "Matthew 7:13-14", "Matthew 11:28-29", "Matthew 22:37-39", "Matthew 28:18-20", "Mark 10:43-45", "Luke 9:23-25", "Luke 10:20", "Luke 11:13", "Luke 12:32", "Luke 12:48b", "Luke 14:26", "Luke 17:10", "John 1:12", "John 1:14", "John 3:16", "John 5:44", "John 6:68-69"]}, {"date": "2026-08-12", "weekday": "Wed", "budget": 170, "newRefs": ["Romans 1:16", "Romans 2:4", "Romans 3:23", "Romans 5:6-10", "Romans 6:12-13", "Romans 6:23", "Romans 8:1-2", "Romans 8:15-16", "Romans 8:28", "Romans 8:37-39", "Romans 10:9-10", "Romans 12:1-2", "Romans 13:8", "Romans 14:8"], "reviewRefs": ["Habakkuk 3:17-18", "Zechariah 4:6b", "Zephaniah 3:17", "Malachi 3:10", "Matthew 6:19-21", "Matthew 6:24", "Matthew 6:33-34", "Matthew 28:18-20", "Mark 10:43-45", "Luke 9:23-25", "Luke 10:20", "Luke 11:13", "Luke 12:32", "Luke 12:48b", "Luke 14:26", "Luke 17:10", "John 1:12", "John 1:14", "John 3:16", "John 5:44", "John 6:68-69", "John 8:31-32", "John 10:10-11", "John 10:27-30", "John 12:24-25", "John 13:34-35", "John 14:1-3", "John 14:6", "John 14:27", "John 15:5", "John 16:33", "Acts 1:8", "Acts 3:19", "Acts 4:12", "Acts 20:24"]}, {"date": "2026-08-13", "weekday": "Thu", "budget": 170, "newRefs": ["1 Corinthians 1:18", "1 Corinthians 2:2", "1 Corinthians 2:14", "1 Corinthians 6:19-20", "1 Corinthians 9:22b", "1 Corinthians 9:26-27", "1 Corinthians 10:13", "1 Corinthians 12:18", "1 Corinthians 13:13", "1 Corinthians 15:58", "2 Corinthians 3:5", "2 Corinthians 3:17", "2 Corinthians 4:4", "2 Corinthians 4:7"], "reviewRefs": ["Matthew 7:7-8", "Matthew 7:13-14", "Matthew 11:28-29", "Matthew 22:37-39", "John 8:31-32", "John 10:10-11", "John 10:27-30", "John 12:24-25", "John 13:34-35", "John 14:1-3", "John 14:6", "John 14:27", "John 15:5", "John 16:33", "Acts 1:8", "Acts 3:19", "Acts 4:12", "Acts 20:24", "Romans 1:16", "Romans 2:4", "Romans 3:23", "Romans 5:6-10", "Romans 6:12-13", "Romans 6:23", "Romans 8:1-2", "Romans 8:15-16", "Romans 8:28", "Romans 8:37-39", "Romans 10:9-10", "Romans 12:1-2", "Romans 13:8", "Romans 14:8"]}, {"date": "2026-08-14", "weekday": "Fri", "budget": 170, "newRefs": ["2 Corinthians 4:16-18", "2 Corinthians 5:7", "2 Corinthians 5:14", "2 Corinthians 5:17", "2 Corinthians 6:14", "2 Corinthians 7:10", "2 Corinthians 9:7", "2 Corinthians 11:14"], "reviewRefs": ["Isaiah 1:18", "Isaiah 40:6-8", "Isaiah 40:28-31", "Isaiah 54:2-3", "Isaiah 55:1-3a", "Isaiah 55:8-9", "Isaiah 57:15", "Isaiah 66:1-2", "Jeremiah 9:23-24", "Jeremiah 29:11-13", "Jeremiah 33:3", "Lamentations 3:21-23", "Joel 2:13", "Micah 6:8", "Matthew 28:18-20", "Mark 10:43-45", "Luke 9:23-25", "Luke 10:20", "Luke 11:13", "Luke 12:32", "Luke 12:48b", "Luke 14:26", "Luke 17:10", "John 1:12", "John 1:14", "John 3:16", "John 5:44", "John 6:68-69", "Romans 1:16", "Romans 2:4", "Romans 3:23", "Romans 5:6-10", "Romans 6:12-13", "Romans 6:23", "Romans 8:1-2", "Romans 8:15-16", "Romans 8:28", "Romans 8:37-39", "Romans 10:9-10", "Romans 12:1-2", "Romans 13:8", "Romans 14:8", "1 Corinthians 1:18", "1 Corinthians 2:2", "1 Corinthians 2:14", "1 Corinthians 6:19-20", "1 Corinthians 9:22b", "1 Corinthians 9:26-27", "1 Corinthians 10:13", "1 Corinthians 12:18", "1 Corinthians 13:13", "1 Corinthians 15:58", "2 Corinthians 3:5", "2 Corinthians 3:17", "2 Corinthians 4:4", "2 Corinthians 4:7"]}, {"date": "2026-08-15", "weekday": "Sat", "budget": 90, "newRefs": [], "reviewRefs": ["Habakkuk 3:17-18", "Zechariah 4:6b", "Zephaniah 3:17", "Malachi 3:10", "Matthew 6:19-21", "Matthew 6:24", "Matthew 6:33-34", "John 8:31-32", "John 10:10-11", "John 10:27-30", "John 12:24-25", "John 13:34-35", "John 14:1-3", "John 14:6", "John 14:27", "John 15:5", "John 16:33", "Acts 1:8", "Acts 3:19", "Acts 4:12", "Acts 20:24", "1 Corinthians 1:18", "1 Corinthians 2:2", "1 Corinthians 2:14", "1 Corinthians 6:19-20", "1 Corinthians 9:22b", "1 Corinthians 9:26-27", "1 Corinthians 10:13", "1 Corinthians 12:18", "1 Corinthians 13:13", "1 Corinthians 15:58", "2 Corinthians 3:5", "2 Corinthians 3:17", "2 Corinthians 4:4", "2 Corinthians 4:7", "2 Corinthians 4:16-18", "2 Corinthians 5:7", "2 Corinthians 5:14", "2 Corinthians 5:17", "2 Corinthians 6:14", "2 Corinthians 7:10", "2 Corinthians 9:7", "2 Corinthians 11:14"]}, {"date": "2026-08-16", "weekday": "Sun", "budget": 90, "newRefs": ["2 Corinthians 12:9-10", "Galatians 1:10", "Galatians 2:20"], "reviewRefs": ["Matthew 7:7-8", "Matthew 7:13-14", "Matthew 11:28-29", "Matthew 22:37-39", "Romans 1:16", "Romans 2:4", "Romans 3:23", "Romans 5:6-10", "Romans 6:12-13", "Romans 6:23", "Romans 8:1-2", "Romans 8:15-16", "Romans 8:28", "Romans 8:37-39", "Romans 10:9-10", "Romans 12:1-2", "Romans 13:8", "Romans 14:8", "2 Corinthians 4:16-18", "2 Corinthians 5:7", "2 Corinthians 5:14", "2 Corinthians 5:17", "2 Corinthians 6:14", "2 Corinthians 7:10", "2 Corinthians 9:7", "2 Corinthians 11:14"]}, {"date": "2026-08-17", "weekday": "Mon", "budget": 170, "newRefs": ["Galatians 5:16-17", "Galatians 5:22-23", "Galatians 6:2", "Galatians 6:7-9", "Galatians 6:14", "Ephesians 1:3", "Ephesians 2:8-10", "Ephesians 2:14", "Ephesians 3:16-21", "Ephesians 4:11-12", "Ephesians 4:22-24", "Ephesians 5:1-2", "Ephesians 5:11", "Ephesians 5:15-16"], "reviewRefs": ["Matthew 28:18-20", "Mark 10:43-45", "Luke 9:23-25", "Luke 10:20", "Luke 11:13", "Luke 12:32", "Luke 12:48b", "Luke 14:26", "Luke 17:10", "John 1:12", "John 1:14", "John 3:16", "John 5:44", "John 6:68-69", "1 Corinthians 1:18", "1 Corinthians 2:2", "1 Corinthians 2:14", "1 Corinthians 6:19-20", "1 Corinthians 9:22b", "1 Corinthians 9:26-27", "1 Corinthians 10:13", "1 Corinthians 12:18", "1 Corinthians 13:13", "1 Corinthians 15:58", "2 Corinthians 3:5", "2 Corinthians 3:17", "2 Corinthians 4:4", "2 Corinthians 4:7", "2 Corinthians 12:9-10", "Galatians 1:10", "Galatians 2:20"]}, {"date": "2026-08-18", "weekday": "Tue", "budget": 170, "newRefs": ["Ephesians 6:10-12", "Philippians 1:6", "Philippians 1:21", "Philippians 2:1-11", "Philippians 2:13", "Philippians 3:7-8", "Philippians 3:13-14", "Philippians 4:6-7", "Philippians 4:8"], "reviewRefs": ["John 8:31-32", "John 10:10-11", "John 10:27-30", "John 12:24-25", "John 13:34-35", "John 14:1-3", "John 14:6", "John 14:27", "John 15:5", "John 16:33", "Acts 1:8", "Acts 3:19", "Acts 4:12", "Acts 20:24", "2 Corinthians 4:16-18", "2 Corinthians 5:7", "2 Corinthians 5:14", "2 Corinthians 5:17", "2 Corinthians 6:14", "2 Corinthians 7:10", "2 Corinthians 9:7", "2 Corinthians 11:14", "2 Corinthians 12:9-10", "Galatians 1:10", "Galatians 2:20", "Galatians 5:16-17", "Galatians 5:22-23", "Galatians 6:2", "Galatians 6:7-9", "Galatians 6:14", "Ephesians 1:3", "Ephesians 2:8-10", "Ephesians 2:14", "Ephesians 3:16-21", "Ephesians 4:11-12", "Ephesians 4:22-24", "Ephesians 5:1-2", "Ephesians 5:11", "Ephesians 5:15-16"]}, {"date": "2026-08-19", "weekday": "Wed", "budget": 170, "newRefs": ["Philippians 4:19", "Colossians 3:1-2", "1 Thessalonians 5:16-18", "1 Timothy 6:6-8", "2 Timothy 1:7", "2 Timothy 1:12", "2 Timothy 2:3-4", "2 Timothy 2:21", "2 Timothy 3:16-17", "2 Timothy 4:6-8", "Hebrews 4:12", "Hebrews 4:15-16"], "reviewRefs": ["Romans 1:16", "Romans 2:4", "Romans 3:23", "Romans 5:6-10", "Romans 6:12-13", "Romans 6:23", "Romans 8:1-2", "Romans 8:15-16", "Romans 8:28", "Romans 8:37-39", "Romans 10:9-10", "Romans 12:1-2", "Romans 13:8", "Romans 14:8", "Galatians 5:16-17", "Galatians 5:22-23", "Galatians 6:2", "Galatians 6:7-9", "Galatians 6:14", "Ephesians 1:3", "Ephesians 2:8-10", "Ephesians 2:14", "Ephesians 3:16-21", "Ephesians 4:11-12", "Ephesians 4:22-24", "Ephesians 5:1-2", "Ephesians 5:11", "Ephesians 5:15-16", "Ephesians 6:10-12", "Philippians 1:6", "Philippians 1:21", "Philippians 2:1-11", "Philippians 2:13", "Philippians 3:7-8", "Philippians 3:13-14", "Philippians 4:6-7", "Philippians 4:8"]}, {"date": "2026-08-20", "weekday": "Thu", "budget": 170, "newRefs": ["Hebrews 10:23-25", "Hebrews 11:1", "Hebrews 11:6", "Hebrews 12:1-2", "Hebrews 12:4", "Hebrews 12:11", "James 4:7", "1 Peter 1:18-19", "1 Peter 2:9", "1 Peter 2:11-12", "1 Peter 2:21", "1 Peter 3:15-16", "1 Peter 4:7-8", "1 Peter 4:10"], "reviewRefs": ["1 Corinthians 1:18", "1 Corinthians 2:2", "1 Corinthians 2:14", "1 Corinthians 6:19-20", "1 Corinthians 9:22b", "1 Corinthians 9:26-27", "1 Corinthians 10:13", "1 Corinthians 12:18", "1 Corinthians 13:13", "1 Corinthians 15:58", "2 Corinthians 3:5", "2 Corinthians 3:17", "2 Corinthians 4:4", "2 Corinthians 4:7", "2 Corinthians 12:9-10", "Galatians 1:10", "Galatians 2:20", "Ephesians 6:10-12", "Philippians 1:6", "Philippians 1:21", "Philippians 2:1-11", "Philippians 2:13", "Philippians 3:7-8", "Philippians 3:13-14", "Philippians 4:6-7", "Philippians 4:8", "Philippians 4:19", "Colossians 3:1-2", "1 Thessalonians 5:16-18", "1 Timothy 6:6-8", "2 Timothy 1:7", "2 Timothy 1:12", "2 Timothy 2:3-4", "2 Timothy 2:21", "2 Timothy 3:16-17", "2 Timothy 4:6-8", "Hebrews 4:12", "Hebrews 4:15-16"]}, {"date": "2026-08-21", "weekday": "Fri", "budget": 170, "newRefs": ["1 Peter 5:6-7", "1 Peter 5:8-9", "2 Peter 3:8-9", "1 John 1:9", "1 John 2:15-16", "1 John 3:16", "1 John 4:4", "1 John 4:17-19", "1 John 5:3", "1 John 5:13-15", "Revelation 3:20"], "reviewRefs": ["2 Corinthians 4:16-18", "2 Corinthians 5:7", "2 Corinthians 5:14", "2 Corinthians 5:17", "2 Corinthians 6:14", "2 Corinthians 7:10", "2 Corinthians 9:7", "2 Corinthians 11:14", "Galatians 5:16-17", "Galatians 5:22-23", "Galatians 6:2", "Galatians 6:7-9", "Galatians 6:14", "Ephesians 1:3", "Ephesians 2:8-10", "Ephesians 2:14", "Ephesians 3:16-21", "Ephesians 4:11-12", "Ephesians 4:22-24", "Ephesians 5:1-2", "Ephesians 5:11", "Ephesians 5:15-16", "Philippians 4:19", "Colossians 3:1-2", "1 Thessalonians 5:16-18", "1 Timothy 6:6-8", "2 Timothy 1:7", "2 Timothy 1:12", "2 Timothy 2:3-4", "2 Timothy 2:21", "2 Timothy 3:16-17", "2 Timothy 4:6-8", "Hebrews 4:12", "Hebrews 4:15-16", "Hebrews 10:23-25", "Hebrews 11:1", "Hebrews 11:6", "Hebrews 12:1-2", "Hebrews 12:4", "Hebrews 12:11", "James 4:7", "1 Peter 1:18-19", "1 Peter 2:9", "1 Peter 2:11-12", "1 Peter 2:21", "1 Peter 3:15-16", "1 Peter 4:7-8", "1 Peter 4:10"]}, {"date": "2026-08-22", "weekday": "Sat", "budget": 90, "newRefs": [], "reviewRefs": ["Ephesians 6:10-12", "Philippians 1:6", "Philippians 1:21", "Philippians 2:1-11", "Philippians 2:13", "Philippians 3:7-8", "Philippians 3:13-14", "Philippians 4:6-7", "Philippians 4:8", "Hebrews 10:23-25", "Hebrews 11:1", "Hebrews 11:6", "Hebrews 12:1-2", "Hebrews 12:4", "Hebrews 12:11", "James 4:7", "1 Peter 1:18-19", "1 Peter 2:9", "1 Peter 2:11-12", "1 Peter 2:21", "1 Peter 3:15-16", "1 Peter 4:7-8", "1 Peter 4:10", "1 Peter 5:6-7", "1 Peter 5:8-9", "2 Peter 3:8-9", "1 John 1:9", "1 John 2:15-16", "1 John 3:16", "1 John 4:4", "1 John 4:17-19", "1 John 5:3", "1 John 5:13-15", "Revelation 3:20"]}]}</script>
+<script>
+const DATA = JSON.parse(document.getElementById('app-data').textContent);
+const VERSES = DATA.verses;               // [{ref, text}]
+const SCHEDULE = DATA.schedule;           // [{date, weekday, budget, newRefs, reviewRefs}]
+const VERSE_BY_REF = {};
+VERSES.forEach(v => VERSE_BY_REF[v.ref] = v.text);
+const TOTAL_VERSES = VERSES.length;
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function fmtDate(iso){
+  const d = new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('en-US',{month:'short', day:'numeric'});
+}
+function addDays(iso, n){
+  const d = new Date(iso+'T00:00:00');
+  d.setDate(d.getDate()+n);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+// ---------- storage helpers (Supabase) ----------
+const SUPABASE_URL = 'https://odfmcpqosaywcfjuvudm.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_Ngyu1M5lMLblK2_OKPTezw_TgCyyvqV';
+let sbClient = null;
+function getSb(){
+  if(sbClient) return sbClient;
+  try{
+    if(!window.supabase) throw new Error('supabase-js failed to load (offline or CDN blocked)');
+    sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return sbClient;
+  }catch(e){ console.error('Supabase client init failed', e); return null; }
+}
+
+async function sGet(key){
+  try{
+    const sb = getSb();
+    if(!sb) return null;
+    const { data, error } = await sb.from('vine_kv').select('value').eq('key', key).maybeSingle();
+    if(error) throw error;
+    return data ? data.value : null;
+  }
+  catch(e){ console.error('storage get failed', key, e); return null; }
+}
+async function sSet(key, val){
+  try{
+    const sb = getSb();
+    if(!sb) return;
+    const { error } = await sb.from('vine_kv').upsert({ key, value: val, updated_at: new Date().toISOString() });
+    if(error) throw error;
+  }
+  catch(e){ console.error('storage set failed', key, e); }
+}
+
+let LEARNED = {};        // ref -> dateISO actually marked learned
+let REVIEWED = {};       // "date|ref" -> true
+let CLAIMED = [];        // list of reward ids
+let FREEZE = null;       // {frozenUntil, forfeited:[ids]}
+
+async function loadState(){
+  LEARNED = (await sGet('learned')) || {};
+  REVIEWED = (await sGet('reviewed')) || {};
+  CLAIMED = (await sGet('claimedRewards')) || [];
+  FREEZE = (await sGet('freeze')) || null;
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(window._toastT);
+  window._toastT = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+// ---------- reward tiers ----------
+const REWARD_TIERS = [];
+for(let n=30;n<=TOTAL_VERSES+29;n+=30) REWARD_TIERS.push({id:'boba-'+n, count:n, title:'Boba / sweet coffee', desc:'Every 30 verses memorized'});
+for(let n=60;n<=TOTAL_VERSES+59;n+=60) REWARD_TIERS.push({id:'crochet-'+n, count:n, title:'1.5 hrs of crocheting', desc:'Every 60 verses memorized'});
+REWARD_TIERS.push({id:'restaurant-100', count:100, title:'Try a new restaurant', desc:'At 100 verses memorized'});
+REWARD_TIERS.sort((a,b)=>a.count-b.count);
+
+// ---------- pace / freeze logic ----------
+function cumulativePlannedThrough(dateIso){
+  let c = 0;
+  for(const day of SCHEDULE){ if(day.date <= dateIso) c += day.newRefs.length; else break; }
+  return c;
+}
+function totalLearnedCount(){ return Object.keys(LEARNED).length; }
+
+async function evaluatePace(){
+  const today = todayStr();
+  const scheduleStart = SCHEDULE[0].date, scheduleEnd = SCHEDULE[SCHEDULE.length-1].date;
+  if(today < scheduleStart) return; // plan hasn't started
+  const checkDate = today > scheduleEnd ? scheduleEnd : today;
+  const plannedYesterday = cumulativePlannedThrough(addDays(checkDate,-1));
+  const actual = totalLearnedCount();
+
+  // lift expired freeze
+  if(FREEZE && FREEZE.frozenUntil && today > FREEZE.frozenUntil){
+    FREEZE = null; await sSet('freeze', null);
+  }
+  // trigger new freeze if behind and not already frozen
+  if(!FREEZE && actual < plannedYesterday){
+    const forfeited = REWARD_TIERS.filter(t => actual>=t.count && !CLAIMED.includes(t.id)).map(t=>t.id);
+    CLAIMED = CLAIMED.concat(forfeited.map(id=>'forfeited:'+id));
+    FREEZE = { frozenUntil: addDays(today,3), forfeited, triggeredOn: today };
+    await sSet('freeze', FREEZE);
+    await sSet('claimedRewards', CLAIMED);
+  }
+}
+
+// ---------- render: PLAN tab ----------
+function renderPlan(){
+  const el = document.getElementById('tab-plan');
+  const today = todayStr();
+  let html = '';
+  SCHEDULE.forEach(day=>{
+    const isToday = day.date === today;
+    html += `<div class="card">
+      <div class="day-head">
+        <span class="day-date">${fmtDate(day.date)} <span style="font-family:Inter;font-weight:500;font-size:12px;color:#8A8368;">${day.weekday}</span>${isToday?'<span class="today-badge">Today</span>':''}</span>
+        <span class="day-meta">${day.budget} min budget</span>
+      </div>`;
+    html += `<div class="section-label">New verses (${day.newRefs.length})</div>`;
+    html += day.newRefs.length ? `<div class="chip-row">` + day.newRefs.map(ref=>{
+      const done = !!LEARNED[ref];
+      return `<label class="chip new ${done?'done':''}"><input type="checkbox" data-kind="learn" data-ref="${escAttr(ref)}" data-date="${day.date}" ${done?'checked':''}/>${ref}</label>`;
+    }).join('') + `</div>` : `<div class="empty-note">No new verses — pure review / buffer day.</div>`;
+
+    html += `<div class="section-label">Review (${day.reviewRefs.length})</div>`;
+    html += day.reviewRefs.length ? `<div class="chip-row">` + day.reviewRefs.map(ref=>{
+      const key = day.date+'|'+ref;
+      const done = !!REVIEWED[key];
+      return `<label class="chip review ${done?'done':''}"><input type="checkbox" data-kind="review" data-ref="${escAttr(ref)}" data-date="${day.date}" ${done?'checked':''}/>${ref}</label>`;
+    }).join('') + `</div>` : `<div class="empty-note">Nothing due for review yet.</div>`;
+    html += `</div>`;
+  });
+  el.innerHTML = html;
+  el.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('change', onPlanCheck);
+  });
+}
+function escAttr(s){ return s.replace(/"/g,'&quot;'); }
+
+async function onPlanCheck(e){
+  const cb = e.target;
+  const ref = cb.dataset.ref, date = cb.dataset.date, kind = cb.dataset.kind;
+  if(kind==='learn'){
+    if(cb.checked) LEARNED[ref] = date; else delete LEARNED[ref];
+    await sSet('learned', LEARNED);
+  } else {
+    const key = date+'|'+ref;
+    if(cb.checked) REVIEWED[key] = true; else delete REVIEWED[key];
+    await sSet('reviewed', REVIEWED);
+  }
+  await evaluatePace();
+  renderHero();
+  renderPlan();
+  renderProgress();
+}
+
+// ---------- render: PRACTICE tab ----------
+let practiceDate = null;
+let practiceMode = 'day'; // 'day' | 'random'
+
+function renderPractice(){
+  const el = document.getElementById('tab-practice');
+  el.innerHTML = `
+    <div class="mode-switch">
+      <button class="mode-btn ${practiceMode==='day'?'active':''}" data-mode="day">By day</button>
+      <button class="mode-btn ${practiceMode==='random'?'active':''}" data-mode="random">Random quiz</button>
+    </div>
+    <div class="hl-legend">
+      <span><i style="background:rgba(183,148,63,0.5);"></i>possessive + God/Lord</span>
+      <span><i style="background:var(--rust);"></i>auxiliary verb</span>
+      <span><i style="background:var(--plural);"></i>plural -s/-es</span>
+    </div>
+    <div id="practiceBody"></div>`;
+  el.querySelectorAll('.mode-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      practiceMode = b.dataset.mode;
+      renderPractice();
+    });
+  });
+  if(practiceMode==='day') renderPracticeByDay();
+  else renderRandomQuiz();
+}
+
+function renderPracticeByDay(){
+  const el = document.getElementById('practiceBody');
+  if(!practiceDate){
+    const t = todayStr();
+    const match = SCHEDULE.find(d=>d.date===t);
+    practiceDate = match ? t : SCHEDULE[0].date;
+  }
+  const day = SCHEDULE.find(d=>d.date===practiceDate) || SCHEDULE[0];
+  const dueRefs = Array.from(new Set([...day.newRefs, ...day.reviewRefs]));
+
+  let html = `<div class="practice-picker">
+    <label style="font-size:13px;color:#5c5738;">Session for</label>
+    <select id="practiceDateSel">` +
+    SCHEDULE.map(d=>`<option value="${d.date}" ${d.date===practiceDate?'selected':''}>${fmtDate(d.date)} (${d.weekday})</option>`).join('') +
+    `</select></div>`;
+
+  if(dueRefs.length===0){
+    html += `<div class="empty-note">Nothing scheduled this day.</div>`;
+  }
+  dueRefs.forEach(ref=>{
+    const isNew = day.newRefs.includes(ref);
+    const text = VERSE_BY_REF[ref] || '';
+    html += `<div class="card verse-card" data-ref="${escAttr(ref)}">
+      <div class="tagrow"><span class="tag ${isNew?'new':'review'}">${isNew?'New':'Review'}</span></div>
+      <div class="ref">${ref}</div>
+      <div class="verse-text blurred" data-state="hidden">${highlightVerse(text)}</div>
+      <div class="scaffold-holder"></div>
+      ${renderChain(ref)}
+      <div class="btn-row">
+        <button class="btn secondary act-reveal">Reveal text</button>
+        <button class="btn secondary act-scaffold">First-letter scaffold</button>
+        <button class="btn secondary act-tip">Get a memory tip</button>
+        <button class="btn secondary act-quiz">Quiz me</button>
+      </div>
+      <div class="quiz-holder"></div>
+      <div class="feedback-box" style="display:none;"></div>
+      <div class="pass-badge"><span class="dot"></span><span class="pass-text">Passed</span></div>
+    </div>`;
+  });
+  el.innerHTML = html;
+
+  document.getElementById('practiceDateSel').addEventListener('change', e=>{
+    practiceDate = e.target.value; renderPracticeByDay();
+  });
+  el.querySelectorAll('.verse-card').forEach(card=>{
+    const ref = card.dataset.ref;
+    const textEl = card.querySelector('.verse-text');
+    card.querySelector('.act-reveal').addEventListener('click', ()=>{
+      const hidden = textEl.dataset.state === 'hidden';
+      textEl.classList.toggle('blurred', !hidden ? true : false);
+      textEl.dataset.state = hidden ? 'shown' : 'hidden';
+      card.querySelector('.act-reveal').textContent = hidden ? 'Hide text' : 'Reveal text';
+    });
+    card.querySelector('.act-scaffold').addEventListener('click', ()=>{
+      const holder = card.querySelector('.scaffold-holder');
+      const text = VERSE_BY_REF[ref];
+      const scaffold = text.split(/\s+/).map(w=>{
+        const m = w.match(/[A-Za-z0-9]/);
+        return m ? m[0]+'.' : '·';
+      }).join(' ');
+      holder.innerHTML = `<div class="scaffold">${scaffold}</div>`;
+    });
+    card.querySelector('.act-tip').addEventListener('click', (ev)=>askTip(ref, ev.target, card));
+    card.querySelector('.act-quiz').addEventListener('click', ()=>startQuiz(ref, card));
+  });
+}
+
+// ---------- Random quiz mode ----------
+let randomQuizType = 'blank'; // 'blank' | 'guessref'
+let currentQuizRef = null;
+let currentBlankIndices = [];
+
+function learnedPool(){
+  return VERSES.filter(v => !!LEARNED[v.ref]);
+}
+
+function pickRandomVerse(excludeRef){
+  const pool = learnedPool();
+  if(pool.length===0) return null;
+  let candidates = pool;
+  if(excludeRef && pool.length>1) candidates = pool.filter(v=>v.ref!==excludeRef);
+  return candidates[Math.floor(Math.random()*candidates.length)];
+}
+
+function renderRandomQuiz(){
+  const el = document.getElementById('practiceBody');
+  const poolSize = learnedPool().length;
+
+  let html = `<div class="quiz-type-switch">
+      <button class="qtype-btn ${randomQuizType==='blank'?'active':''}" data-qt="blank">Fill in the blanks</button>
+      <button class="qtype-btn ${randomQuizType==='guessref'?'active':''}" data-qt="guessref">Guess the reference</button>
+    </div>`;
+
+  if(poolSize===0){
+    html += `<div class="empty-note">Mark a few verses as learned on the Plan tab first — random quiz draws from verses you've already memorized.</div>`;
+    el.innerHTML = html;
+    el.querySelectorAll('.qtype-btn').forEach(b=>b.addEventListener('click', ()=>{ randomQuizType=b.dataset.qt; renderRandomQuiz(); }));
+    return;
+  }
+
+  html += `<div id="randomQuizCard"></div>
+    <div class="btn-row"><button class="btn secondary" id="newQuestionBtn">New random question</button></div>`;
+  el.innerHTML = html;
+
+  el.querySelectorAll('.qtype-btn').forEach(b=>b.addEventListener('click', ()=>{
+    randomQuizType=b.dataset.qt; currentQuizRef=null; renderRandomQuiz();
+  }));
+  document.getElementById('newQuestionBtn').addEventListener('click', newRandomQuestion);
+
+  if(!currentQuizRef) newRandomQuestion();
+  else renderCurrentQuestion();
+}
+
+function newRandomQuestion(){
+  const v = pickRandomVerse(currentQuizRef);
+  if(!v) return;
+  currentQuizRef = v.ref;
+  if(randomQuizType==='blank'){
+    const words = VERSE_BY_REF[currentQuizRef].split(/\s+/);
+    const nBlanks = Math.max(3, Math.min(10, Math.round(words.length*0.25)));
+    const idxPool = words.map((_,i)=>i).filter(i=>i>0); // skip first word, keep it as a starting anchor
+    for(let i=idxPool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [idxPool[i],idxPool[j]]=[idxPool[j],idxPool[i]]; }
+    currentBlankIndices = idxPool.slice(0, Math.min(nBlanks, idxPool.length)).sort((a,b)=>a-b);
+  }
+  renderCurrentQuestion();
+}
+
+function renderCurrentQuestion(){
+  const card = document.getElementById('randomQuizCard');
+  if(!card) return;
+  if(randomQuizType==='blank') renderFillBlankQuestion(card);
+  else renderGuessRefQuestion(card);
+}
+
+function renderFillBlankQuestion(card){
+  const ref = currentQuizRef;
+  const text = VERSE_BY_REF[ref];
+  const words = text.split(/\s+/);
+  const blankSet = new Set(currentBlankIndices);
+  const spans = words.map((w,i)=>{
+    if(blankSet.has(i)){
+      const widthCh = Math.max(4, w.length);
+      return `<input class="blank-input" data-i="${i}" style="width:${widthCh+1.5}ch" autocomplete="off" spellcheck="false"/>`;
+    }
+    return styledWordSpan(w, i>0?words[i-1]:null, i<words.length-1?words[i+1]:null);
+  }).join(' ');
+
+  card.innerHTML = `<div class="card verse-card">
+    <div class="tagrow"><span class="tag review">Fill in the blank</span></div>
+    <div class="ref" style="opacity:.55;font-size:14px;">${currentBlankIndices.length} blank${currentBlankIndices.length===1?'':'s'} · ${ref}</div>
+    <div class="blank-text">${spans}</div>
+    <div class="btn-row"><button class="btn gold" id="checkBlanksBtn">Check blanks</button></div>
+    <div class="feedback-box" style="display:none;" id="blankFeedback"></div>
+    <div class="pass-badge" id="blankPassBadge"><span class="dot"></span><span class="pass-text">Passed</span></div>
+  </div>`;
+
+  document.getElementById('checkBlanksBtn').addEventListener('click', ()=>{
+    let correct = 0;
+    card.querySelectorAll('.blank-input').forEach(inp=>{
+      const i = parseInt(inp.dataset.i,10);
+      const actualWord = normWords(words[i])[0] || '';
+      const typedWord = normWords(inp.value)[0] || '';
+      const ok = actualWord && actualWord === typedWord;
+      inp.classList.remove('correct','wrong');
+      inp.classList.add(ok?'correct':'wrong');
+      if(ok) correct++;
+    });
+    const total = currentBlankIndices.length;
+    const pct = total ? Math.round(100*correct/total) : 0;
+    const fb = document.getElementById('blankFeedback');
+    fb.style.display='block';
+    fb.innerHTML = `<b>${correct}/${total} blanks correct (${pct}%)</b>`;
+    const badge = document.getElementById('blankPassBadge');
+    if(pct>=90){ badge.querySelector('.pass-text').textContent = `Passed — ${pct}%`; badge.classList.add('show'); }
+    else badge.classList.remove('show');
+  });
+}
+
+function renderGuessRefQuestion(card){
+  const ref = currentQuizRef;
+  const text = VERSE_BY_REF[ref];
+  const words = text.split(/\s+/);
+  // show a snippet: a contiguous chunk, roughly 40-70% of the verse, from a random-ish but stable start
+  const snippetLen = Math.max(6, Math.round(words.length*0.55));
+  const maxStart = Math.max(0, words.length - snippetLen);
+  const start = Math.floor(Math.random()*(maxStart+1));
+  const snippet = words.slice(start, start+snippetLen).map((w,i)=>classifyAndWrap(w, i>0?words[start+i-1]:null, (start+i+1<words.length)?words[start+i+1]:null)).join(' ');
+
+  card.innerHTML = `<div class="card verse-card">
+    <div class="tagrow"><span class="tag review">Guess the reference</span></div>
+    <div class="verse-text" style="margin-top:6px;">"${snippet}${start+snippetLen<words.length?'…':''}"</div>
+    <div class="btn-row" style="margin-top:12px;">
+      <input type="text" class="ref-guess-textbox" id="refGuessInput" placeholder="e.g. Isaiah 1:18" style="flex:1;min-width:180px;padding:9px 10px;border-radius:9px;border:1px solid #D9D0AF;">
+      <button class="btn gold" id="checkRefBtn">Check</button>
+    </div>
+    <div class="feedback-box" style="display:none;" id="refFeedback"></div>
+    <div class="pass-badge" id="refPassBadge"><span class="dot"></span><span class="pass-text">Passed</span></div>
+  </div>`;
+
+  function normRef(s){ return s.toLowerCase().replace(/\./g,'').replace(/\s+/g,' ').trim(); }
+  document.getElementById('checkRefBtn').addEventListener('click', ()=>{
+    const typed = document.getElementById('refGuessInput').value;
+    const ok = normRef(typed) === normRef(ref);
+    const fb = document.getElementById('refFeedback');
+    fb.style.display='block';
+    fb.innerHTML = ok
+      ? `<span class="refscore" style="color:var(--leaf-dim);">✓ Correct</span> — ${ref}`
+      : `<span class="refscore" style="color:var(--danger);">Not quite.</span> The reference is <b>${ref}</b>.`;
+    const badge = document.getElementById('refPassBadge');
+    if(ok){ badge.querySelector('.pass-text').textContent = 'Passed'; badge.classList.add('show'); }
+    else badge.classList.remove('show');
+  });
+  document.getElementById('refGuessInput').addEventListener('keydown', e=>{
+    if(e.key==='Enter') document.getElementById('checkRefBtn').click();
+  });
+}
+
+function renderChain(ref){
+  const learnedDate = LEARNED[ref];
+  const offsets = [
+    {o:0,label:'L'}, {o:1,label:'1d'}, {o:2,label:'2d'}, {o:4,label:'4d'}, {o:7,label:'7d'}
+  ];
+  let html = '<div class="chain">';
+  offsets.forEach((step,i)=>{
+    let filled = false;
+    if(step.o===0){ filled = !!learnedDate; }
+    else if(learnedDate){ filled = !!REVIEWED[addDays(learnedDate, step.o)+'|'+ref]; }
+    html += `<div class="node ${filled?'filled':''}">${step.label}</div>`;
+    if(i<offsets.length-1) html += '<div class="bar"></div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+async function callClaude(promptText, maxTokens){
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({
+      model:"claude-sonnet-4-6",
+      max_tokens: maxTokens || 300,
+      messages:[{role:"user", content: promptText}]
+    })
+  });
+  const data = await resp.json();
+  const txt = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+  return txt || '(no response)';
+}
+
+async function askTip(ref, btn, card){
+  const box = card.querySelector('.feedback-box');
+  box.style.display='block';
+  box.textContent = 'Thinking of a memory tip…';
+  btn.disabled = true;
+  try{
+    const text = VERSE_BY_REF[ref];
+    const prompt = `I'm memorizing this Bible verse (ESV): "${ref} — ${text}". Give me one short, concrete memory tip (an image, a structural pattern, or a way to chunk the phrases) to help me memorize it. Keep it under 80 words, no preamble.`;
+    const out = await callClaude(prompt, 220);
+    box.textContent = out;
+  }catch(e){
+    box.textContent = 'Could not reach the tip generator right now — try chunking the verse into 2-3 phrases and picture each one.';
+  }
+  btn.disabled = false;
+}
+
+function startQuiz(ref, card){
+  const holder = card.querySelector('.quiz-holder');
+  const textEl = card.querySelector('.verse-text');
+  textEl.classList.add('blurred'); textEl.dataset.state='hidden';
+  card.querySelector('.pass-badge').classList.remove('show');
+  card.querySelector('.feedback-box').style.display='none';
+  holder.innerHTML = `<textarea placeholder="Type the verse from memory…"></textarea>
+    <div class="btn-row">
+      <button class="btn gold act-check">Check my recitation</button>
+      <button class="btn secondary act-ai-check">Get AI feedback</button>
+    </div>`;
+  holder.querySelector('.act-check').addEventListener('click', ()=>{
+    const typed = holder.querySelector('textarea').value;
+    localDiff(typed, VERSE_BY_REF[ref], card);
+  });
+  holder.querySelector('.act-ai-check').addEventListener('click', (ev)=>{
+    const typed = holder.querySelector('textarea').value;
+    aiCheck(ref, typed, ev.target, card);
+  });
+}
+
+function normWords(s){ return (s.toLowerCase().replace(/[’‘]/g,"'").match(/[a-z0-9]+(?:'[a-z0-9]+)*/g) || []); }
+
+// ---------- verse-text highlighting ----------
+// 1) possessive/article immediately before God/Lord/LORD (our God, my Lord, your God, the Lord…)
+// 2) auxiliary/modal verbs (shall, will, might, may, should, can, could)
+// 3) plural -s/-es noun suffixes, marked separately from the above two
+function coreWord(w){ const m = w.match(/[A-Za-z']+/); return m ? m[0] : ''; }
+function isAuxWord(core){ return /^(shall|will|might|may|should|can|could)$/i.test(core); }
+function isPossessiveArticleWord(core){ return /^(our|my|your|his|her|their|the|a|an|O)$/i.test(core); }
+function isDivineWord(core){ return /^(god|lord)$/i.test(core); }
+function pluralSuffixLen(core){
+  const w = core.toLowerCase();
+  if(w.length<3) return 0;
+  if(w.endsWith("'s")) return 0; // possessive, not plural
+  const stop = new Set([
+    // pronouns / possessives / misc function words
+    'is','his','was','us','yes','this','always','towards','jesus','moses','thus','whose',
+    'less','unless','across','perhaps','yours','ours','ourselves','yourselves','nevertheless',
+    'its','theirs','hers','whereas',
+    // 3rd-person-singular verbs (word looks plural but is a verb in this verse set)
+    'abides','asks','bears','believes','belongs','blows','boasts','cares','casts','ceases',
+    'cleanses','clings','comes','confesses','controls','covers','declares','destroys','dies',
+    'disguises','does','exists','fades','falls','fears','finds','forfeits','gains','gets',
+    'gives','has','hates','hears','increases','inhabits','knocks','knows','lays','leads',
+    'lies','lives','loses','loves','opens','practices','produces','prowls','receives','relents',
+    'remains','rewards','says','seeks','seems','shows','sows','surpasses','thirsts','trembles',
+    'understands','withers','yields'
+  ]);
+  if(stop.has(w)) return 0;
+  if(w.endsWith('ss')) return 0;
+  if(w.endsWith('ous')) return 0;
+  if(w.endsWith('ches')||w.endsWith('shes')||w.endsWith('sses')||w.endsWith('xes')||w.endsWith('zes')) return 2;
+  if(w.endsWith('s')) return 1;
+  return 0;
+}
+// wraps one token (word plus any attached punctuation) in the right highlight span, if any.
+// prevWord/nextWord are the raw neighboring tokens (or null), used for the possessive-article + God/Lord phrase check.
+function classifyAndWrap(word, prevWord, nextWord){
+  const core = coreWord(word);
+  if(!core) return word;
+  if(isAuxWord(core)) return `<span class="hl-aux">${word}</span>`;
+  if(isDivineWord(core) && prevWord && isPossessiveArticleWord(coreWord(prevWord))) return `<span class="hl-divine">${word}</span>`;
+  if(isPossessiveArticleWord(core) && nextWord && isDivineWord(coreWord(nextWord))) return `<span class="hl-divine">${word}</span>`;
+  const sLen = pluralSuffixLen(core);
+  if(sLen>0){
+    const coreStart = word.indexOf(core);
+    const leading = word.slice(0, coreStart);
+    const trailing = word.slice(coreStart+core.length);
+    const base = core.slice(0, core.length-sLen);
+    const suffix = core.slice(core.length-sLen);
+    return `${leading}${base}<span class="hl-plural">${suffix}</span>${trailing}`;
+  }
+  return word;
+}
+// renders a full verse string as space-joined, individually-classified word tokens
+function highlightVerse(text){
+  const words = text.split(/\s+/);
+  return words.map((w,i)=>classifyAndWrap(w, i>0?words[i-1]:null, i<words.length-1?words[i+1]:null)).join(' ');
+}
+// word-level version for the fill-in-the-blank view, where words are rendered individually
+// and a blanked neighbor can't itself carry a highlight
+function styledWordSpan(word, prevWord, nextWord){
+  return `<span>${classifyAndWrap(word, prevWord, nextWord)}</span>`;
+}
+function localDiff(typed, actual, card){
+  const box = card.querySelector('.feedback-box');
+  box.style.display='block';
+  const tW = normWords(typed), aW = normWords(actual);
+  let hits=0;
+  const marked = aW.map((w,i)=>{
+    const ok = tW[i] === w;
+    if(ok) hits++;
+    return `<span class="${ok?'diff-match':'diff-miss'}">${w}</span>`;
+  }).join(' ');
+  const pct = aW.length ? Math.round(100*hits/aW.length) : 0;
+  box.innerHTML = `<div><b>${pct}% word-for-word match</b> (in order). Green = matched, red = off.</div><div style="margin-top:6px;">${marked}</div>`;
+  setPassBadge(card, pct);
+}
+function setPassBadge(card, pct){
+  const badge = card.querySelector('.pass-badge');
+  if(pct >= 90){
+    badge.querySelector('.pass-text').textContent = `Passed — ${pct}% match`;
+    badge.classList.add('show');
+  } else {
+    badge.classList.remove('show');
+  }
+}
+async function aiCheck(ref, typed, btn, card){
+  const box = card.querySelector('.feedback-box');
+  box.style.display='block';
+  box.textContent = 'Checking…';
+  btn.disabled = true;
+  try{
+    const actual = VERSE_BY_REF[ref];
+    const prompt = `The correct ESV text of ${ref} is: "${actual}". A person just tried to recite it from memory: "${typed}". Compare them, ignoring capitalization and punctuation differences (e.g. a missing leading quotation mark or period doesn't count against them). In under 70 words: tell them if it's essentially correct, point out any meaningfully wrong/missing/added words, and give one quick encouragement. No preamble. End your reply on its own final line with exactly: SCORE: NN (your best-estimate percentage of correct words/content, as an integer 0-100, no % sign).`;
+    const out = await callClaude(prompt, 240);
+    const m = out.match(/SCORE:\s*(\d{1,3})\s*$/i);
+    const pct = m ? Math.max(0, Math.min(100, parseInt(m[1],10))) : null;
+    box.textContent = m ? out.slice(0, m.index).trim() : out;
+    if(pct !== null) setPassBadge(card, pct);
+  }catch(e){
+    box.textContent = 'Could not reach AI feedback — use "Check my recitation" for a local word comparison instead.';
+  }
+  btn.disabled = false;
+}
+
+// ---------- render: PROGRESS tab ----------
+function renderProgress(){
+  const el = document.getElementById('tab-progress');
+  const today = todayStr();
+  const totalLearned = totalLearnedCount();
+  const scheduleEnd = SCHEDULE[SCHEDULE.length-1].date;
+  const plannedThroughToday = cumulativePlannedThrough(today > scheduleEnd ? scheduleEnd : today);
+  const diff = totalLearned - plannedThroughToday;
+
+  let paceClass = 'ontrack', paceMsg = "Right on pace.";
+  if(diff > 0){ paceClass='ahead'; paceMsg = `You're ${diff} verse${diff===1?'':'s'} ahead of plan. Nice.`; }
+  else if(diff < 0){ paceClass='behind'; paceMsg = `You're ${-diff} verse${diff===-1?'':'s'} behind plan.`; }
+
+  let html = '';
+
+  if(FREEZE){
+    html += `<div class="pace-banner behind"><b>Reward freeze active until ${fmtDate(FREEZE.frozenUntil)}</b>
+      You fell behind pace on ${fmtDate(FREEZE.triggeredOn)}. No boba, crocheting, or new restaurant until the freeze lifts${FREEZE.forfeited.length?`, and ${FREEZE.forfeited.length} pending reward(s) were forfeited`:''}. Catch up on reviews and new verses to get back on track — the freeze clears automatically after 3 days.</div>`;
+  } else {
+    html += `<div class="pace-banner ${paceClass}"><b>${paceMsg}</b>Planned through today: ${plannedThroughToday} · Actually memorized: ${totalLearned}</div>`;
+  }
+
+  html += `<div class="stat-grid">
+    <div class="stat-card"><div class="n">${totalLearned}</div><div class="l">Memorized</div></div>
+    <div class="stat-card"><div class="n">${TOTAL_VERSES-totalLearned}</div><div class="l">Remaining</div></div>
+    <div class="stat-card"><div class="n">${Math.round(100*totalLearned/TOTAL_VERSES)}%</div><div class="l">Complete</div></div>
+    <div class="stat-card"><div class="n">${daysLeft(today)}</div><div class="l">Days to Aug 22</div></div>
+  </div>`;
+
+  html += `<div class="card"><div class="section-label">Planned vs. actual (cumulative)</div>${renderChart(today)}
+    <div class="legend"><span><i style="background:#D9D0AF"></i>Planned</span><span><i style="background:var(--leaf)"></i>Actual</span></div></div>`;
+
+  html += `<div class="card"><div class="section-label">Rewards</div><div class="reward-grid">` +
+    REWARD_TIERS.map(t=>{
+      const reached = totalLearned >= t.count;
+      const claimed = CLAIMED.includes(t.id);
+      const forfeited = CLAIMED.includes('forfeited:'+t.id);
+      const lockedByFreeze = !!FREEZE;
+      let cls = 'reward-card';
+      if(!reached) cls += ' locked';
+      if(claimed) cls += ' claimed';
+      let btnHtml;
+      if(forfeited) btnHtml = `<span style="font-size:11px;color:var(--danger);">Forfeited (fell behind)</span>`;
+      else if(claimed) btnHtml = `<span style="font-size:11px;color:var(--leaf-dim);">✓ Claimed</span>`;
+      else btnHtml = `<button class="btn ${reached && !lockedByFreeze?'gold':'secondary'}" ${(!reached||lockedByFreeze)?'disabled':''} data-claim="${t.id}">${lockedByFreeze?'Frozen':(reached?'Claim':`${t.count-totalLearned} to go`)}</button>`;
+      return `<div class="${cls}"><div class="title">${t.title}</div><div class="desc">${t.desc} (at ${t.count})</div>${btnHtml}</div>`;
+    }).join('') + `</div></div>`;
+
+  el.innerHTML = html;
+  el.querySelectorAll('[data-claim]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      CLAIMED.push(b.dataset.claim);
+      await sSet('claimedRewards', CLAIMED);
+      toast('Reward claimed — enjoy it 🎉');
+      renderProgress();
+    });
+  });
+}
+function daysLeft(today){
+  const end = SCHEDULE[SCHEDULE.length-1].date;
+  const d = Math.round((new Date(end)-new Date(today))/86400000);
+  return Math.max(0,d);
+}
+function renderChart(today){
+  let cum=0, cumA=0;
+  const maxCum = TOTAL_VERSES;
+  let cols = '';
+  SCHEDULE.forEach(day=>{
+    cum += day.newRefs.length;
+    const actualForDay = day.newRefs.filter(r=>LEARNED[r]).length;
+    cumA += (day.date <= today) ? actualForDay : 0;
+    const pH = Math.max(2, Math.round(100*cum/maxCum));
+    const aH = Math.max(day.date<=today?2:0, Math.round(100*cumA/maxCum));
+    cols += `<div class="bar-col"><div class="bars">
+      <div class="planned" style="height:${pH}%"></div>
+      <div class="actual" style="height:${aH}%"></div>
+    </div><div class="lbl">${fmtDate(day.date).replace(' ','')}</div></div>`;
+  });
+  return `<div class="chart">${cols}</div>`;
+}
+
+// ---------- hero ----------
+function renderHero(){
+  const totalLearned = totalLearnedCount();
+  const pct = Math.round(100*totalLearned/TOTAL_VERSES);
+  document.getElementById('heroProgressFill').style.width = pct+'%';
+  document.getElementById('heroStats').innerHTML = `
+    <div class="stat-pill"><div class="n">${totalLearned}/${TOTAL_VERSES}</div><div class="l">Memorized</div></div>
+    <div class="stat-pill"><div class="n">${daysLeft(todayStr())}</div><div class="l">Days left</div></div>
+    <div class="stat-pill"><div class="n">${pct}%</div><div class="l">Complete</div></div>`;
+}
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- init ----------
+(async function init(){
+  await loadState();
+  await evaluatePace();
+  renderHero();
+  renderPlan();
+  renderPractice();
+  renderProgress();
+})();
+</script>
+</body>
+</html>

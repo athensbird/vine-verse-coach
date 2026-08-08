@@ -583,6 +583,20 @@ function renderFillBlankQuestion(card){
     if(pct>=90){ badge.querySelector('.pass-text').textContent = `Passed — ${pct}%`; badge.classList.add('show'); }
     else badge.classList.remove('show');
   });
+
+  // Space bar advances focus to the next blank, so users don't need Tab or the mouse.
+  const blankInputs = Array.from(card.querySelectorAll('.blank-input'));
+  blankInputs.forEach((inp, idx)=>{
+    inp.addEventListener('keydown', e=>{
+      if(e.key===' ' || e.code==='Space'){
+        e.preventDefault();
+        const next = blankInputs[idx+1];
+        if(next) next.focus();
+        else document.getElementById('checkBlanksBtn').focus();
+      }
+    });
+  });
+  if(blankInputs[0]) blankInputs[0].focus();
 }
 
 function renderGuessRefQuestion(card){
@@ -622,6 +636,7 @@ function renderGuessRefQuestion(card){
   document.getElementById('refGuessInput').addEventListener('keydown', e=>{
     if(e.key==='Enter') document.getElementById('checkRefBtn').click();
   });
+  document.getElementById('refGuessInput').focus();
 }
 
 function renderChain(ref){

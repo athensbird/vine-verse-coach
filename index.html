@@ -268,6 +268,13 @@ async function sSet(key, val){
   try{
     const sb = getSb();
     if(!sb) return;
+    if(val === null || val === undefined){
+      // the vine_kv.value column is NOT NULL, so "clearing" a key means deleting its row,
+      // not upserting a null value (which Postgres would reject).
+      const { error } = await sb.from('vine_kv').delete().eq('key', key);
+      if(error) throw error;
+      return;
+    }
     const { error } = await sb.from('vine_kv').upsert({ key, value: val, updated_at: new Date().toISOString() });
     if(error) throw error;
   }

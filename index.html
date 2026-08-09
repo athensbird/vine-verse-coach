@@ -312,21 +312,24 @@ async function evaluatePace(){
   const today = todayStr();
   const scheduleStart = SCHEDULE[0].date, scheduleEnd = SCHEDULE[SCHEDULE.length-1].date;
   if(today < scheduleStart) return; // plan hasn't started
-  const checkDate = today > scheduleEnd ? scheduleEnd : today;
-  const plannedYesterday = cumulativePlannedThrough(addDays(checkDate,-1));
-  const actual = totalLearnedCount();
+  const yesterday = addDays(today,-1);
 
   // lift expired freeze
   if(FREEZE && FREEZE.frozenUntil && today > FREEZE.frozenUntil){
     FREEZE = null; await sSet('freeze', null);
   }
-  // trigger new freeze if behind and not already frozen
-  if(!FREEZE && actual < plannedYesterday){
-    const forfeited = REWARD_TIERS.filter(t => actual>=t.count && !CLAIMED.includes(t.id)).map(t=>t.id);
-    CLAIMED = CLAIMED.concat(forfeited.map(id=>'forfeited:'+id));
-    FREEZE = { frozenUntil: addDays(today,3), forfeited, triggeredOn: today };
-    await sSet('freeze', FREEZE);
-    await sSet('claimedRewards', CLAIMED);
+  // trigger new freeze if yesterday's own new-verse list wasn't fully learned by today
+  if(!FREEZE && yesterday >= scheduleStart && yesterday <= scheduleEnd){
+    const yesterdayDay = SCHEDULE.find(d => d.date === yesterday);
+    const missedRefs = yesterdayDay ? yesterdayDay.newRefs.filter(r => !LEARNED[r]) : [];
+    if(missedRefs.length){
+      const actual = totalLearnedCount();
+      const forfeited = REWARD_TIERS.filter(t => actual>=t.count && !CLAIMED.includes(t.id)).map(t=>t.id);
+      CLAIMED = CLAIMED.concat(forfeited.map(id=>'forfeited:'+id));
+      FREEZE = { frozenUntil: addDays(today,3), forfeited, triggeredOn: today, missedDate: yesterday, missedCount: missedRefs.length };
+      await sSet('freeze', FREEZE);
+      await sSet('claimedRewards', CLAIMED);
+    }
   }
 }
 
@@ -830,8 +833,11 @@ function renderProgress(){
   let html = '';
 
   if(FREEZE){
+    const missedNote = FREEZE.missedDate
+      ? `You didn't finish ${FREEZE.missedCount} new verse${FREEZE.missedCount===1?'':'s'} from ${fmtDate(FREEZE.missedDate)}'s list by the end of that day.`
+      : `You fell behind pace on ${fmtDate(FREEZE.triggeredOn)}.`;
     html += `<div class="pace-banner behind"><b>Reward freeze active until ${fmtDate(FREEZE.frozenUntil)}</b>
-      You fell behind pace on ${fmtDate(FREEZE.triggeredOn)}. No boba, crocheting, or new restaurant until the freeze lifts${FREEZE.forfeited.length?`, and ${FREEZE.forfeited.length} pending reward(s) were forfeited`:''}. Catch up on reviews and new verses to get back on track — the freeze clears automatically after 3 days.</div>`;
+      ${missedNote} No boba, crocheting, or new restaurant until the freeze lifts${FREEZE.forfeited.length?`, and ${FREEZE.forfeited.length} pending reward(s) were forfeited`:''}. Catch up on reviews and new verses to get back on track — the freeze clears automatically after 3 days.</div>`;
   } else {
     html += `<div class="pace-banner ${paceClass}"><b>${paceMsg}</b>Planned through today: ${plannedThroughToday} · Actually memorized: ${totalLearned}</div>`;
   }

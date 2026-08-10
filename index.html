@@ -722,10 +722,10 @@ function normWords(s){ return (s.toLowerCase().replace(/[’‘]/g,"'").match(/[
 
 // ---------- verse-text highlighting ----------
 // 1) possessive/article immediately before God/Lord/LORD (our God, my Lord, your God, the Lord…)
-// 2) auxiliary/modal verbs (shall, will, might, may, should, can, could)
+// 2) auxiliary/modal verbs (shall, will, would, might, may, should, can, could)
 // 3) plural -s/-es noun suffixes, marked separately from the above two
 function coreWord(w){ const m = w.match(/[A-Za-z']+/); return m ? m[0] : ''; }
-function isAuxWord(core){ return /^(shall|will|might|may|should|can|could)$/i.test(core); }
+function isAuxWord(core){ return /^(shall|will|would|might|may|should|can|could)$/i.test(core); }
 function isPossessiveArticleWord(core){ return /^(our|my|your|his|her|their|the|a|an|O)$/i.test(core); }
 function isDivineWord(core){ return /^(god|lord)$/i.test(core); }
 function pluralSuffixLen(core){

@@ -37,20 +37,32 @@ function galShuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) {
 function galRefChapter(r) { return parseInt(String(r).split(`:`)[0], 10); }
 
 /* ---- audio: one shared player using the existing esv-audio function ---- */
+var GAL_SILENT = `data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=`;
 var galAudio = { el: null, ref: null, url: null };
-async function galPlay(ref, setPlaying) {
-  try {
-    if (galAudio.el) { galAudio.el.pause(); if (galAudio.url) URL.revokeObjectURL(galAudio.url); }
-    if (galAudio.ref === ref) { galAudio.ref = null; setPlaying(null); return; }
-    setPlaying(`loading:` + ref);
-    const r = await fetch(`${GAL_SB}/functions/v1/esv-audio?ref=${encodeURIComponent(`Galatians ` + ref)}`, { headers: { Authorization: `Bearer ${GAL_KEY}`, apikey: GAL_KEY } });
-    if (!r.ok) throw Error(`HTTP ` + r.status);
-    const url = URL.createObjectURL(await r.blob());
-    const el = new Audio(url);
-    galAudio = { el, ref, url };
-    el.onended = () => { galAudio.ref = null; setPlaying(null); };
-    await el.play(); setPlaying(ref);
-  } catch (e) { galAudio.ref = null; setPlaying(`error:` + ref); }
+function galUnlock() {
+  // Called synchronously inside the tap, so the shared element is allowed to play later even if the fetch is slow.
+  if (!galAudio.el) galAudio.el = new Audio();
+  const el = galAudio.el;
+  if (!galAudio.ref) { el.src = GAL_SILENT; el.play().catch(() => {}); }
+}
+function galPlay(ref, setPlaying) {
+  galUnlock();
+  const el = galAudio.el;
+  if (galAudio.ref === ref) { el.pause(); galAudio.ref = null; setPlaying(null); return; }
+  el.pause();
+  if (galAudio.url) { URL.revokeObjectURL(galAudio.url); galAudio.url = null; }
+  galAudio.ref = ref; setPlaying(`loading:` + ref);
+  (async () => {
+    try {
+      const r = await fetch(`${GAL_SB}/functions/v1/esv-audio?ref=${encodeURIComponent(`Galatians ` + ref)}`, { headers: { Authorization: `Bearer ${GAL_KEY}`, apikey: GAL_KEY } });
+      if (!r.ok) throw Error(`HTTP ` + r.status);
+      const url = URL.createObjectURL(await r.blob());
+      if (galAudio.ref !== ref) { URL.revokeObjectURL(url); return; }
+      galAudio.url = url; el.src = url;
+      el.onended = () => { if (galAudio.ref === ref) { galAudio.ref = null; setPlaying(null); } };
+      await el.play(); setPlaying(ref);
+    } catch (e) { if (galAudio.ref === ref) { galAudio.ref = null; setPlaying((e && e.name === `NotAllowedError` ? `blocked:` : `error:`) + ref); } }
+  })();
 }
 
 /* ---- live ESV text (only if an esv-text function is deployed; otherwise silently absent) ---- */
@@ -73,7 +85,7 @@ function GalChip({ cls, onClick, children, title }) { return gh(onClick ? `butto
 function GalVerse({ v, text, recall, playing, setPlaying, onPerson, onConcept, flash }) {
   const [open, setOpen] = (0, l.useState)(false);
   const shown = !recall || open;
-  const st = playing === v.r ? `■ Stop` : playing === `loading:` + v.r ? `…` : playing === `error:` + v.r ? `Audio failed` : `▶ Listen`;
+  const st = playing === v.r ? `■ Stop` : playing === `loading:` + v.r ? `…` : playing === `error:` + v.r ? `Audio failed — retry` : playing === `blocked:` + v.r ? `▶ Tap to play` : `▶ Listen`;
   return gh(`div`, { className: `gal-verse${flash ? ` flash` : ``}`, id: `gal-v-` + v.r.replace(`:`, `-`) },
     gh(`div`, { className: `gal-verse-head` },
       gh(`span`, { className: `gal-ref` }, `Galatians ` + v.r),
